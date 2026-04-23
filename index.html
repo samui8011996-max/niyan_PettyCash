@@ -1005,18 +1005,27 @@
     });
 
     // 零用金主表:便當款只寫一筆總額
-    const mainLedger = [];
-    if (bentoSum > 0) {
-      mainLedger.push({
-        date,
-        item: '當日便當款',
-        type: '支出',
-        income: '',
-        expense: bentoSum,
-        handler
-      });
-    }
-    // 把補貼款的每人記錄也加入
+    // 零用金主表:便當款每人各寫一筆
+const mainLedger = [];
+entries.forEach(([person, sel]) => {
+  const isSubsidy = sel.item === '午餐補助';
+  if (!isSubsidy) {
+    const label = sel.lessRice
+      ? `${person} — ${sel.item}(少飯) — 便當`
+      : `${person} — ${sel.item} — 便當`;
+    mainLedger.push({
+      date,
+      item: label,
+      type: '支出',
+      income: '',
+      expense: sel.price,
+      handler
+    });
+  }
+});
+// 把補貼款的每人記錄也加入
+
+
     mainLedger.push(...subsidyLedger);
 
     try {
