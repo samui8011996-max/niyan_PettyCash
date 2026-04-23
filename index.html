@@ -389,7 +389,7 @@
 <div class="container">
   <header>
     <button class="settings-btn" onclick="openSettings()" title="設定">⚙</button>
-    <h1><span class="zh">零用金</span></h1>
+    <h1>Petty Cash <span class="zh">零用金</span></h1>
     <div class="subtitle">— 泥研製所 Shared Ledger —</div>
   </header>
 
@@ -525,6 +525,16 @@
         <span>應收</span>
         <span class="amount" id="cartTotal">NT$ 0</span>
       </div>
+      <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div>
+          <label>實收金額</label>
+          <input type="number" id="cashReceived" placeholder="輸入收到的金額" oninput="calculateChange()">
+        </div>
+        <div>
+          <label>找零</label>
+          <div id="cashChange" style="font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; color: var(--accent); padding: 8px 0;">NT$ 0</div>
+        </div>
+      </div>
     </div>
     <div class="form-row cols-2" style="margin-top:16px;">
       <div><label>經手人</label><select id="salesHandler"></select></div>
@@ -655,7 +665,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const PEOPLE = ['妍儒','佳宜','維妮','淑莉','美菲','志益','育齊','拍拍','志偉','其他'];
+  const PEOPLE = ['淑莉','美菲','佳宜','妍儒','志益','育齊','拍拍','志偉','維妮','其他'];
   const BENTO_PEOPLE = ['淑莉','美菲','佳宜','妍儒','志益','育齊','拍拍','志偉','維妮','其他1','其他2','其他3'];
   const BENTO_MENU = [
     { name: '雞排', price: 100 }, { name: '排骨', price: 100 }, { name: '燒肉', price: 100 },
@@ -682,28 +692,6 @@
   const $ = id => document.getElementById(id);
   const fmt = n => 'NT$ ' + Number(n||0).toLocaleString();
   const today = () => new Date().toISOString().slice(0,10);
-
-  // 萬能日期標準化:不管拿到什麼都轉成 YYYY-MM-DD
-  function normalizeDate(val) {
-    if (!val) return '';
-    const s = String(val).trim();
-    // 已經是 YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    // YYYY/M/D 或 YYYY/MM/DD
-    const m1 = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    if (m1) return `${m1[1]}-${String(m1[2]).padStart(2,'0')}-${String(m1[3]).padStart(2,'0')}`;
-    // ISO 格式:2026-04-22T00:00:00.000Z
-    if (s.includes('T')) return s.split('T')[0];
-    // JavaScript Date toString:Wed Apr 22 2026 ...
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${dd}`;
-    }
-    return s;
-  }
 
   function toast(msg, type='') {
     const t = $('toast');
@@ -828,8 +816,6 @@
       if (res.status !== 'ok') throw new Error(res.msg || '讀取失敗');
       confirmedBento = {};
       (res.records || []).forEach(r => {
-        // 過濾日期(以防後端沒過濾好)
-        if (normalizeDate(r.date) !== date) return;
         const menu = BENTO_MENU.find(m => m.name === r.bento);
         if (menu && r.person) {
           confirmedBento[r.person] = {
@@ -1134,6 +1120,29 @@
   function updateCartTotal() {
     const { total } = calcCartTotal();
     $('cartTotal').textContent = fmt(total);
+    calculateChange(); // 當總額變動時，同步計算找零
+  }
+
+  // 新增：找零計算功能
+  function calculateChange() {
+    const { total } = calcCartTotal();
+    const received = Number($('cashReceived').value || 0);
+    const changeEl = $('cashChange');
+    
+    if (received === 0) {
+      changeEl.textContent = 'NT$ 0';
+      changeEl.style.color = 'var(--accent)';
+      return;
+    }
+    
+    const change = received - total;
+    if (change < 0) {
+      changeEl.textContent = '金額不足';
+      changeEl.style.color = 'var(--red)';
+    } else {
+      changeEl.textContent = 'NT$ ' + change.toLocaleString();
+      changeEl.style.color = 'var(--live)';
+    }
   }
 
   $('discountType').addEventListener('change', updateCartTotal);
@@ -1159,6 +1168,8 @@
       cart = [];
       $('discountType').value = 'none';
       $('discountValue').value = '';
+      $('cashReceived').value = ''; // 清空找零區域
+      $('cashChange').textContent = 'NT$ 0';
       renderProductGrid();
       renderCart();
     } catch (e) { toast('登記失敗:' + e.message, 'error'); }
@@ -1233,11 +1244,7 @@
       updateSyncStatus('loading');
       const res = await callGet('getAll');
       if (res.status !== 'ok') throw new Error(res.msg || '讀取失敗');
-      // 萬能日期標準化
-      allRecords = (res.records || []).map(r => ({
-        ...r,
-        date: normalizeDate(r.date)
-      }));
+      allRecords = res.records || [];
       updateSyncStatus('connected');
       renderRecords();
       updateTotals();
@@ -1271,11 +1278,7 @@
     let dayRecords = [];
     try {
       const res = await callGet('getLunchByDate', { date });
-      if (res.status === 'ok') {
-        dayRecords = (res.records || []).map(r => ({ ...r, date: normalizeDate(r.date) }));
-        // 再過濾一次,因為後端可能已經過濾但日期格式不一致
-        dayRecords = dayRecords.filter(r => r.date === date);
-      }
+      if (res.status === 'ok') dayRecords = res.records || [];
     } catch (e) {
       container.innerHTML = `<p class="empty-state" style="padding:20px;">讀取失敗:${e.message}</p>`;
       return;
