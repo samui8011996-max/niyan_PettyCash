@@ -782,17 +782,104 @@
     return true;
   }
 
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      tab.classList.add('active');
-      $('panel-' + tab.dataset.panel).classList.add('active');
-      if (tab.dataset.panel === 'bento') loadTodayOrders();
-      if (tab.dataset.panel === 'records') loadAllRecords();
-    });
+ document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    $('panel-' + tab.dataset.panel).classList.add('active');
+    if (tab.dataset.panel === 'bento') loadTodayOrders();
+    // 改動:只在記錄為空時才載入,避免重複拉取
+    if (tab.dataset.panel === 'records' && allRecords.length === 0) {
+      loadAllRecords();
+    }
   });
-
+});
+ 
+ 
+// ─────────────────────────────────────────────
+// 修改 2:startPolling(分頁被切走時停止輪詢)
+// ─────────────────────────────────────────────
+// 找到原本的 startPolling 函式,整段替換成:
+ 
+function startPolling() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(() => {
+    // 只有點餐頁是顯示狀態 且 瀏覽器分頁沒被切走時才同步
+    if ($('panel-bento').classList.contains('active') && !document.hidden) {
+      loadTodayOrders();
+    }
+  }, 20000);
+}
+ 
+ 
+// ─────────────────────────────────────────────
+// 修改 3:init 函式(合併初始請求,一次拿完)
+// ─────────────────────────────────────────────
+// 找到原本的 async function init() ,整段替換成:
+ 
+async function init() {
+  ['bentoHandler','pkgHandler','salesHandler','incomeHandler','expenseHandler'].forEach(id => {
+    fillPeopleSelect($(id));
+  });
+  bindHandlerOther('bentoHandler','bentoHandlerOther');
+  bindHandlerOther('pkgHandler','pkgHandlerOther');
+  bindHandlerOther('salesHandler','salesHandlerOther');
+  bindHandlerOther('incomeHandler','incomeHandlerOther');
+  bindHandlerOther('expenseHandler','expenseHandlerOther');
+  ['bentoDate','pkgDate','salesDate','refillDate','incomeDate','expenseDate','settleDate'].forEach(id => {
+    $(id).value = today();
+  });
+  renderProductGrid();
+ 
+  if (!settings.webhookUrl) {
+    $('sharedBanner').classList.add('offline');
+    $('sharedBannerText').textContent = '尚未設定 Web App URL — 請點右上角 ⚙ 進行設定';
+    renderBentoGrid();
+    return;
+  }
+ 
+  // 改動:一次請求同時拿主表和今日便當資料
+  try {
+    updateSyncStatus('loading');
+    const res = await callGet('getInit', { date: today() });
+    if (res.status !== 'ok') throw new Error(res.msg || '載入失敗');
+ 
+    // 處理便當資料
+    confirmedBento = {};
+    (res.lunchRecords || []).forEach(r => {
+      const menu = BENTO_MENU.find(m => m.name === r.bento);
+      if (menu && r.person) {
+        confirmedBento[r.person] = {
+          item: r.bento,
+          price: menu.price,
+          lessRice: r.lessRice === '少飯' || r.lessRice === true
+        };
+      }
+    });
+ 
+    // 處理主表資料
+    allRecords = res.allRecords || [];
+ 
+    updateSyncStatus('connected');
+    $('sharedBanner').classList.remove('offline');
+    $('sharedBannerText').textContent = '即時共用模式 · 每 20 秒自動同步其他同事的選擇';
+ 
+    // 一次渲染所有畫面
+    renderBentoGrid();
+    renderRecords();
+    updateTotals();
+    renderLunchSettle();
+  } catch (e) {
+    console.error(e);
+    updateSyncStatus('error');
+    $('sharedBanner').classList.add('offline');
+    $('sharedBannerText').textContent = '⚠ 無法連線到試算表 — ' + e.message;
+    renderBentoGrid();
+  }
+ 
+  startPolling();
+}
   function fillPeopleSelect(el) {
     el.innerHTML = '';
     PEOPLE.forEach(p => {
