@@ -696,7 +696,7 @@
     { name: '大摩艾', price:520 }, { name: '小摩艾', price: 120 }
   ];
 
-  const POLL_INTERVAL_MS = 30000; // 輪詢間隔(原本 20 秒,改 30 秒減輕負擔)
+  const POLL_INTERVAL_MS = 10000; // 輪詢間隔(原本 20 秒,改10)
 
   let settings = JSON.parse(localStorage.getItem('pc_settings_v2') || '{}');
   let allRecords = [];        // 主表所有記錄(本地快取)
