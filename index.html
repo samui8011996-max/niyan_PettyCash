@@ -14,11 +14,9 @@
 
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#f4f1ea">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="泥研零用金">
 
-
-  
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Noto+Serif+TC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -438,13 +436,13 @@
     </div>
     <div class="shared-banner" id="sharedBanner">
       <span class="live-dot"></span>
-      <span id="sharedBannerText">即時共用模式 · 每 20 秒自動同步其他同事的選擇</span>
+      <span id="sharedBannerText">即時共用模式 · 每 30 秒自動同步其他同事的選擇</span>
     </div>
     <div class="bento-date">
       <label style="margin:0;">日期</label>
-      <input type="date" id="bentoDate" style="width:auto;" onchange="loadTodayOrders()">
+      <input type="date" id="bentoDate" style="width:auto;" onchange="onBentoDateChange()">
       <span style="font-size:13px; color:var(--ink-soft);" id="bentoCountHint">尚未選擇</span>
-      <button class="refresh-btn" onclick="loadTodayOrders()">↻ 手動同步</button>
+      <button class="refresh-btn" onclick="refreshAll()">↻ 手動同步</button>
     </div>
     <div class="bento-grid" id="bentoGrid"></div>
     <div class="order-summary" id="orderSummary" style="display:none;">
@@ -476,7 +474,7 @@
     </div>
     <input type="text" id="bentoHandlerOther" placeholder="其他經手人姓名" style="display:none; margin-top:8px;">
     <p style="margin-top:10px; font-size:12px; color:var(--ink-soft); font-style:italic;">
-      💡 上傳後會寫入 Google Sheet,✓ 綠色標記者為已上傳。已上傳的選擇不會重複送出。
+      💡 上傳後會寫入 Google Sheet 主表,✓ 綠色標記者為已上傳。已上傳的選擇不會重複送出。
     </p>
   </div>
 
@@ -611,7 +609,7 @@
     <div class="panel-header">
       <div class="panel-title">記錄 <span class="en">All Records</span></div>
       <div style="display:flex; gap:8px;">
-        <button class="btn btn-outline btn-small" onclick="loadAllRecords()">↻ 重新載入</button>
+        <button class="btn btn-outline btn-small" onclick="refreshAll()">↻ 重新載入</button>
         <button class="btn btn-outline btn-small" onclick="openSheetUrl()">開啟試算表</button>
       </div>
     </div>
@@ -698,10 +696,12 @@
     { name: '大摩艾', price:520 }, { name: '小摩艾', price: 120 }
   ];
 
+  const POLL_INTERVAL_MS = 30000; // 輪詢間隔(原本 20 秒,改 30 秒減輕負擔)
+
   let settings = JSON.parse(localStorage.getItem('pc_settings_v2') || '{}');
-  let allRecords = [];
-  let bentoSelections = {};
-  let confirmedBento = {};
+  let allRecords = [];        // 主表所有記錄(本地快取)
+  let bentoSelections = {};   // 還沒上傳的本地選擇
+  let confirmedBento = {};    // 已上傳(從主表解析)
   let cart = [];
   let pollInterval = null;
 
@@ -752,7 +752,7 @@
     else toast('尚未設定試算表連結', 'error');
   }
 
-  // GET using JSONP to bypass CORS
+  // GET 用 JSONP 繞過 CORS
   function callGet(action, params = {}) {
     return new Promise((resolve, reject) => {
       if (!settings.webhookUrl) return reject(new Error('未設定 Web App URL'));
@@ -771,7 +771,7 @@
     });
   }
 
-  // POST using no-cors mode
+  // POST 用 no-cors
   async function callPost(payload) {
     if (!settings.webhookUrl) throw new Error('未設定 Web App URL');
     await fetch(settings.webhookUrl, {
@@ -782,104 +782,112 @@
     return true;
   }
 
- document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    tab.classList.add('active');
-    $('panel-' + tab.dataset.panel).classList.add('active');
-    if (tab.dataset.panel === 'bento') loadTodayOrders();
-    // 改動:只在記錄為空時才載入,避免重複拉取
-    if (tab.dataset.panel === 'records' && allRecords.length === 0) {
-      loadAllRecords();
+  // ============ 從 allRecords 解析便當資料(取代後端 lunch sheet) ============
+  // 解析規則必須和 submitBento 寫入時的格式對應:
+  //   便當: "妍儒 — 雞排 — 便當"            或  "妍儒 — 雞排(少飯) — 便當"
+  //   補貼: "妍儒 —午餐補助"
+  function parseBentoFromRecord(r) {
+    if (r.type !== '支出') return null;
+    const item = String(r.item || '');
+
+    // 便當款
+    const bentoMatch = item.match(/^(.+?)\s*[—–-]\s*(.+?)\s*[—–-]\s*便當\s*$/);
+    if (bentoMatch) {
+      const person = bentoMatch[1].trim();
+      let bento = bentoMatch[2].trim();
+      let lessRice = false;
+      const lr = bento.match(/^(.*?)\s*[((]\s*少飯\s*[))]\s*$/);
+      if (lr) { bento = lr[1].trim(); lessRice = true; }
+      return {
+        date: r.date, person, bento,
+        lessRice: lessRice ? '少飯' : '',
+        price: Number(r.expense || 0),
+        type: '便當', handler: r.handler || ''
+      };
     }
-  });
-});
- 
- 
-// ─────────────────────────────────────────────
-// 修改 2:startPolling(分頁被切走時停止輪詢)
-// ─────────────────────────────────────────────
-// 找到原本的 startPolling 函式,整段替換成:
- 
-function startPolling() {
-  if (pollInterval) clearInterval(pollInterval);
-  pollInterval = setInterval(() => {
-    // 只有點餐頁是顯示狀態 且 瀏覽器分頁沒被切走時才同步
-    if ($('panel-bento').classList.contains('active') && !document.hidden) {
-      loadTodayOrders();
+
+    // 補貼款
+    if (item.indexOf('午餐補助') !== -1) {
+      const subMatch = item.match(/^(.+?)\s*[—–-]\s*午餐補助/);
+      const person = subMatch ? subMatch[1].trim() : '';
+      return {
+        date: r.date, person, bento: '午餐補助', lessRice: '',
+        price: Number(r.expense || 0),
+        type: '補貼', handler: r.handler || ''
+      };
     }
-  }, 20000);
-}
- 
- 
-// ─────────────────────────────────────────────
-// 修改 3:init 函式(合併初始請求,一次拿完)
-// ─────────────────────────────────────────────
-// 找到原本的 async function init() ,整段替換成:
- 
-async function init() {
-  ['bentoHandler','pkgHandler','salesHandler','incomeHandler','expenseHandler'].forEach(id => {
-    fillPeopleSelect($(id));
-  });
-  bindHandlerOther('bentoHandler','bentoHandlerOther');
-  bindHandlerOther('pkgHandler','pkgHandlerOther');
-  bindHandlerOther('salesHandler','salesHandlerOther');
-  bindHandlerOther('incomeHandler','incomeHandlerOther');
-  bindHandlerOther('expenseHandler','expenseHandlerOther');
-  ['bentoDate','pkgDate','salesDate','refillDate','incomeDate','expenseDate','settleDate'].forEach(id => {
-    $(id).value = today();
-  });
-  renderProductGrid();
- 
-  if (!settings.webhookUrl) {
-    $('sharedBanner').classList.add('offline');
-    $('sharedBannerText').textContent = '尚未設定 Web App URL — 請點右上角 ⚙ 進行設定';
-    renderBentoGrid();
-    return;
+
+    return null;
   }
- 
-  // 改動:一次請求同時拿主表和今日便當資料
-  try {
-    updateSyncStatus('loading');
-    const res = await callGet('getInit', { date: today() });
-    if (res.status !== 'ok') throw new Error(res.msg || '載入失敗');
- 
-    // 處理便當資料
+
+  function getLunchByDate(dateStr) {
+    if (!dateStr) return [];
+    const out = [];
+    for (const r of allRecords) {
+      if (r.date !== dateStr) continue;
+      const parsed = parseBentoFromRecord(r);
+      if (parsed) out.push(parsed);
+    }
+    return out;
+  }
+
+  // 從 allRecords 同步 confirmedBento(指定日期)
+  function syncConfirmedFromRecords() {
+    const date = $('bentoDate').value || today();
     confirmedBento = {};
-    (res.lunchRecords || []).forEach(r => {
+    getLunchByDate(date).forEach(r => {
       const menu = BENTO_MENU.find(m => m.name === r.bento);
       if (menu && r.person) {
         confirmedBento[r.person] = {
           item: r.bento,
           price: menu.price,
-          lessRice: r.lessRice === '少飯' || r.lessRice === true
+          lessRice: r.lessRice === '少飯'
         };
       }
     });
- 
-    // 處理主表資料
-    allRecords = res.allRecords || [];
- 
-    updateSyncStatus('connected');
-    $('sharedBanner').classList.remove('offline');
-    $('sharedBannerText').textContent = '即時共用模式 · 每 20 秒自動同步其他同事的選擇';
- 
-    // 一次渲染所有畫面
-    renderBentoGrid();
-    renderRecords();
-    updateTotals();
-    renderLunchSettle();
-  } catch (e) {
-    console.error(e);
-    updateSyncStatus('error');
-    $('sharedBanner').classList.add('offline');
-    $('sharedBannerText').textContent = '⚠ 無法連線到試算表 — ' + e.message;
+  }
+
+  // ============ 主要載入函式:一次拉主表,同步所有畫面 ============
+  async function refreshAll() {
+    if (!settings.webhookUrl) return;
+    try {
+      updateSyncStatus('loading');
+      const res = await callGet('getAll');
+      if (res.status !== 'ok') throw new Error(res.msg || '讀取失敗');
+      allRecords = res.records || [];
+      updateSyncStatus('connected');
+      $('sharedBanner').classList.remove('offline');
+      $('sharedBannerText').textContent = `即時共用模式 · 每 ${POLL_INTERVAL_MS/1000} 秒自動同步其他同事的選擇`;
+
+      // 同步所有畫面
+      syncConfirmedFromRecords();
+      renderBentoGrid();
+      renderRecords();
+      updateTotals();
+      renderLunchSettle();
+    } catch (e) {
+      console.error(e);
+      updateSyncStatus('error');
+      $('sharedBanner').classList.add('offline');
+      $('sharedBannerText').textContent = '⚠ 無法連線到試算表 — ' + e.message;
+    }
+  }
+
+  function onBentoDateChange() {
+    syncConfirmedFromRecords();
     renderBentoGrid();
   }
- 
-  startPolling();
-}
+
+  // ============ Tab 切換 ============
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      $('panel-' + tab.dataset.panel).classList.add('active');
+    });
+  });
+
   function fillPeopleSelect(el) {
     el.innerHTML = '';
     PEOPLE.forEach(p => {
@@ -904,42 +912,7 @@ async function init() {
     return v;
   }
 
-  function parseBentoItem(item) {
-    const match = (item || '').match(/^([^【]+)【便當-([^】]+)】(\(少飯\))?/);
-    if (!match) return null;
-    return { person: match[1], bento: match[2], lessRice: !!match[3] };
-  }
-
-  async function loadTodayOrders() {
-    if (!settings.webhookUrl) return;
-    const date = $('bentoDate').value || today();
-    try {
-      updateSyncStatus('loading');
-      const res = await callGet('getLunchByDate', { date });
-      if (res.status !== 'ok') throw new Error(res.msg || '讀取失敗');
-      confirmedBento = {};
-      (res.records || []).forEach(r => {
-        const menu = BENTO_MENU.find(m => m.name === r.bento);
-        if (menu && r.person) {
-          confirmedBento[r.person] = {
-            item: r.bento,
-            price: menu.price,
-            lessRice: r.lessRice === '少飯' || r.lessRice === true
-          };
-        }
-      });
-      updateSyncStatus('connected');
-      $('sharedBanner').classList.remove('offline');
-      $('sharedBannerText').textContent = '即時共用模式 · 每 20 秒自動同步其他同事的選擇';
-      renderBentoGrid();
-    } catch (e) {
-      console.error(e);
-      updateSyncStatus('error');
-      $('sharedBanner').classList.add('offline');
-      $('sharedBannerText').textContent = '⚠ 無法連線到試算表 — ' + e.message;
-    }
-  }
-
+  // ============ 點餐畫面 ============
   function renderBentoGrid() {
     const grid = $('bentoGrid');
     grid.innerHTML = '';
@@ -1060,25 +1033,15 @@ async function init() {
     btn.disabled = true;
     btn.textContent = '上傳中…';
 
-    // 區分便當 vs 補貼
-    const bentoDetails = [];    // 寫入「今日便當」sheet
-    const subsidyLedger = [];   // 補貼款每人一筆寫入「零用金收支」
-    let bentoSum = 0;
+    // 直接組成主表 ledger 寫入(每人一筆)
+    // 格式必須和 parseBentoFromRecord 對應
+    const ledger = [];
+    let bentoSum = 0, subsidySum = 0;
 
     entries.forEach(([person, sel]) => {
       const isSubsidy = sel.item === '午餐補助';
-      // 明細表:每人一筆
-      bentoDetails.push({
-        date,
-        person,
-        bento: sel.item,
-        lessRice: sel.lessRice ? '少飯' : '',
-        price: sel.price,
-        type: isSubsidy ? '補貼' : '便當',
-        handler
-      });
       if (isSubsidy) {
-        subsidyLedger.push({
+        ledger.push({
           date,
           item: `${person} —午餐補助`,
           type: '支出',
@@ -1086,50 +1049,39 @@ async function init() {
           expense: sel.price,
           handler
         });
+        subsidySum += sel.price;
       } else {
+        const label = sel.lessRice
+          ? `${person} — ${sel.item}(少飯) — 便當`
+          : `${person} — ${sel.item} — 便當`;
+        ledger.push({
+          date,
+          item: label,
+          type: '支出',
+          income: '',
+          expense: sel.price,
+          handler
+        });
         bentoSum += sel.price;
       }
     });
 
-    // 零用金主表:便當款只寫一筆總額
-    // 零用金主表:便當款每人各寫一筆
-const mainLedger = [];
-entries.forEach(([person, sel]) => {
-  const isSubsidy = sel.item === '午餐補助';
-  if (!isSubsidy) {
-    const label = sel.lessRice
-      ? `${person} — ${sel.item}(少飯) — 便當`
-      : `${person} — ${sel.item} — 便當`;
-    mainLedger.push({
-      date,
-      item: label,
-      type: '支出',
-      income: '',
-      expense: sel.price,
-      handler
-    });
-  }
-});
-// 把補貼款的每人記錄也加入
-
-
-    mainLedger.push(...subsidyLedger);
-
     try {
       await callPost({
         action: 'submitLunch',
-        details: bentoDetails,
-        ledger: mainLedger
+        ledger
       });
-      toast(`已上傳 ${entries.length} 筆訂餐 · 便當款 $${bentoSum} + 補貼款 $${subsidyLedger.reduce((s,r)=>s+r.expense,0)}`, 'success');
+      toast(`已上傳 ${entries.length} 筆訂餐 · 便當款 $${bentoSum} + 補貼款 $${subsidySum}`, 'success');
       bentoSelections = {};
-      setTimeout(loadTodayOrders, 1200);
+      // 寫入後立刻拉一次主表更新本地快取
+      setTimeout(refreshAll, 1200);
     } catch (e) {
       toast('上傳失敗:' + e.message, 'error');
       btn.disabled = false;
     }
   }
 
+  // ============ 包裹 ============
   $('pkgCompany').addEventListener('change', e => {
     $('pkgCompanyOther').style.display = e.target.value === '其他' ? 'block' : 'none';
   });
@@ -1153,9 +1105,11 @@ entries.forEach(([person, sel]) => {
       toast('已登記包裹支出', 'success');
       $('pkgAmount').value = '';
       $('pkgCompanyOther').value = '';
+      setTimeout(refreshAll, 1200);
     } catch (e) { toast('登記失敗:' + e.message, 'error'); }
   }
 
+  // ============ 銷售 ============
   function renderProductGrid() {
     const grid = $('productGrid');
     grid.innerHTML = '';
@@ -1232,21 +1186,18 @@ entries.forEach(([person, sel]) => {
   function updateCartTotal() {
     const { total } = calcCartTotal();
     $('cartTotal').textContent = fmt(total);
-    calculateChange(); // 當總額變動時，同步計算找零
+    calculateChange();
   }
 
-  // 新增：找零計算功能
   function calculateChange() {
     const { total } = calcCartTotal();
     const received = Number($('cashReceived').value || 0);
     const changeEl = $('cashChange');
-    
     if (received === 0) {
       changeEl.textContent = 'NT$ 0';
       changeEl.style.color = 'var(--accent)';
       return;
     }
-    
     const change = received - total;
     if (change < 0) {
       changeEl.textContent = '金額不足';
@@ -1280,13 +1231,15 @@ entries.forEach(([person, sel]) => {
       cart = [];
       $('discountType').value = 'none';
       $('discountValue').value = '';
-      $('cashReceived').value = ''; // 清空找零區域
+      $('cashReceived').value = '';
       $('cashChange').textContent = 'NT$ 0';
       renderProductGrid();
       renderCart();
+      setTimeout(refreshAll, 1200);
     } catch (e) { toast('登記失敗:' + e.message, 'error'); }
   }
 
+  // ============ 額外收支 ============
   $('refillHandler').addEventListener('change', e => {
     $('refillHandlerOther').style.display = e.target.value === '其他' ? 'block' : 'none';
   });
@@ -1308,6 +1261,7 @@ entries.forEach(([person, sel]) => {
       });
       toast('已登記零用金補充', 'success');
       $('refillAmount').value = '';
+      setTimeout(refreshAll, 1200);
     } catch (e) { toast('登記失敗:' + e.message, 'error'); }
   }
 
@@ -1326,6 +1280,7 @@ entries.forEach(([person, sel]) => {
       toast('已登記其他收入', 'success');
       $('incomeAmount').value = '';
       $('incomeReason').value = '';
+      setTimeout(refreshAll, 1200);
     } catch (e) { toast('登記失敗:' + e.message, 'error'); }
   }
 
@@ -1344,60 +1299,27 @@ entries.forEach(([person, sel]) => {
       toast('已登記其他支出', 'success');
       $('expenseAmount').value = '';
       $('expenseReason').value = '';
+      setTimeout(refreshAll, 1200);
     } catch (e) { toast('登記失敗:' + e.message, 'error'); }
   }
 
-  async function loadAllRecords() {
-    if (!settings.webhookUrl) {
-      $('recordsBody').innerHTML = '<tr><td colspan="5" class="empty-state">請先在設定中填入 Web App URL</td></tr>';
-      return;
-    }
-    try {
-      updateSyncStatus('loading');
-      const res = await callGet('getAll');
-      if (res.status !== 'ok') throw new Error(res.msg || '讀取失敗');
-      allRecords = res.records || [];
-      updateSyncStatus('connected');
-      renderRecords();
-      updateTotals();
-      renderLunchSettle();
-    } catch (e) {
-      updateSyncStatus('error');
-      toast('讀取失敗:' + e.message, 'error');
-    }
-  }
-
-  // ============ 便當結算 ============
+  // ============ 便當結算(從本地 allRecords 算) ============
   function setSettleDateToday() {
     $('settleDate').value = today();
     renderLunchSettle();
   }
 
-  async function renderLunchSettle() {
+  function renderLunchSettle() {
     const container = $('settleContent');
     const date = $('settleDate').value;
     if (!date) {
       container.innerHTML = '<p class="empty-state" style="padding:20px;">選擇日期查看當天便當結算</p>';
       return;
     }
-    if (!settings.webhookUrl) {
-      container.innerHTML = '<p class="empty-state" style="padding:20px;">尚未設定 Web App URL</p>';
-      return;
-    }
 
-    container.innerHTML = '<p class="empty-state" style="padding:20px;">載入中…</p>';
-
-    let dayRecords = [];
-    try {
-      const res = await callGet('getLunchByDate', { date });
-      if (res.status === 'ok') dayRecords = res.records || [];
-    } catch (e) {
-      container.innerHTML = `<p class="empty-state" style="padding:20px;">讀取失敗:${e.message}</p>`;
-      return;
-    }
-
-    const bentoItems = dayRecords.filter(r => r.type === '便當' || (r.bento && r.bento !== '午餐補助'));
-    const subsidyItems = dayRecords.filter(r => r.type === '補貼' || r.bento === '午餐補助');
+    const dayRecords = getLunchByDate(date);
+    const bentoItems = dayRecords.filter(r => r.type === '便當');
+    const subsidyItems = dayRecords.filter(r => r.type === '補貼');
 
     if (!bentoItems.length && !subsidyItems.length) {
       container.innerHTML = `<p class="empty-state" style="padding:20px;">${date} 沒有便當記錄</p>`;
@@ -1411,7 +1333,7 @@ entries.forEach(([person, sel]) => {
     let listHtml = '';
     bentoItems.forEach(i => {
       listHtml += `<li>
-        <span>${i.person} — ${i.bento}${(i.lessRice === '少飯' || i.lessRice === true)?'(少飯)':''}<span class="s-type bento">便當</span></span>
+        <span>${i.person} — ${i.bento}${i.lessRice==='少飯'?'(少飯)':''}<span class="s-type bento">便當</span></span>
         <span>$${Number(i.price).toLocaleString()}</span>
       </li>`;
     });
@@ -1441,6 +1363,7 @@ entries.forEach(([person, sel]) => {
     `;
   }
 
+  // ============ 記錄頁 ============
   function renderRecords() {
     const tbody = $('recordsBody');
     const kw = $('filterKeyword').value.trim().toLowerCase();
@@ -1455,17 +1378,17 @@ entries.forEach(([person, sel]) => {
     }).sort((a,b) => (b.date || '').localeCompare(a.date || ''));
     if (!filtered.length) {
       tbody.innerHTML = '<tr><td colspan="5" class="empty-state">尚無記錄</td></tr>';
-      return;
+    } else {
+      tbody.innerHTML = filtered.map(r => `
+        <tr>
+          <td class="date-col">${r.date || ''}</td>
+          <td>${r.item || ''}</td>
+          <td class="amount-in">${r.income ? '+ ' + Number(r.income).toLocaleString() : ''}</td>
+          <td class="amount-out">${r.expense ? '- ' + Number(r.expense).toLocaleString() : ''}</td>
+          <td>${r.handler || ''}</td>
+        </tr>
+      `).join('');
     }
-    tbody.innerHTML = filtered.map(r => `
-      <tr>
-        <td class="date-col">${r.date || ''}</td>
-        <td>${r.item || ''}</td>
-        <td class="amount-in">${r.income ? '+ ' + Number(r.income).toLocaleString() : ''}</td>
-        <td class="amount-out">${r.expense ? '- ' + Number(r.expense).toLocaleString() : ''}</td>
-        <td>${r.handler || ''}</td>
-      </tr>
-    `).join('');
     const handlerSel = $('filterHandler');
     const currentValue = handlerSel.value;
     const handlers = [...new Set(allRecords.map(r => r.handler).filter(Boolean))];
@@ -1509,13 +1432,17 @@ entries.forEach(([person, sel]) => {
     }
   }
 
+  // ============ 輪詢:只在點餐分頁 + 分頁可見時觸發 ============
   function startPolling() {
     if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(() => {
-      if ($('panel-bento').classList.contains('active')) loadTodayOrders();
-    }, 20000);
+      if ($('panel-bento').classList.contains('active') && !document.hidden) {
+        refreshAll();
+      }
+    }, POLL_INTERVAL_MS);
   }
 
+  // ============ 啟動 ============
   async function init() {
     ['bentoHandler','pkgHandler','salesHandler','incomeHandler','expenseHandler'].forEach(id => {
       fillPeopleSelect($(id));
@@ -1529,14 +1456,16 @@ entries.forEach(([person, sel]) => {
       $(id).value = today();
     });
     renderProductGrid();
+
     if (!settings.webhookUrl) {
       $('sharedBanner').classList.add('offline');
       $('sharedBannerText').textContent = '尚未設定 Web App URL — 請點右上角 ⚙ 進行設定';
       renderBentoGrid();
       return;
     }
-    await loadTodayOrders();
-    await loadAllRecords();
+
+    // 一次拉主表,把所有畫面同步好
+    await refreshAll();
     startPolling();
   }
 
