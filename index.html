@@ -528,10 +528,11 @@
       <div class="cart-discount-row">
         <label style="white-space:nowrap;">折扣</label>
         <select id="discountType">
-          <option value="none">無折扣</option>
-          <option value="percent">打折 (例: 9 = 九折)</option>
-          <option value="amount">折抵金額</option>
-        </select>
+  <option value="none">無折扣</option>
+  <option value="employee">員工價(七折)</option>
+  <option value="percent">打折 (例: 9 = 九折)</option>
+  <option value="amount">折抵金額</option>
+</select>
         <input type="number" id="discountValue" placeholder="數值" step="0.1">
       </div>
       <div class="cart-total">
@@ -1173,15 +1174,16 @@
     updateCartTotal();
   }
 
-  function calcCartTotal() {
-    const sub = cart.reduce((s, i) => s + i.price * i.qty, 0);
-    const type = $('discountType').value;
-    const val = Number($('discountValue').value || 0);
-    let total = sub;
-    if (type === 'percent' && val > 0 && val <= 10) total = Math.round(sub * val / 10);
-    else if (type === 'amount' && val > 0) total = Math.max(0, sub - val);
-    return { sub, total };
-  }
+function calcCartTotal() {
+  const sub = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const type = $('discountType').value;
+  const val = Number($('discountValue').value || 0);
+  let total = sub;
+  if (type === 'employee') total = Math.round(sub * 0.7);
+  else if (type === 'percent' && val > 0 && val <= 10) total = Math.round(sub * val / 10);
+  else if (type === 'amount' && val > 0) total = Math.max(0, sub - val);
+  return { sub, total };
+}
 
   function updateCartTotal() {
     const { total } = calcCartTotal();
@@ -1220,8 +1222,9 @@
     let desc = `銷售【${items}】`;
     const type = $('discountType').value;
     const val = Number($('discountValue').value || 0);
-    if (type === 'percent' && val) desc += ` (${val}折)`;
-    else if (type === 'amount' && val) desc += ` (折${val}元)`;
+  if (type === 'employee') desc += ` (員工價·七折)`;
+else if (type === 'percent' && val) desc += ` (${val}折)`;
+else if (type === 'amount' && val) desc += ` (折${val}元)`;
     try {
       await callPost({
         action: 'append',
