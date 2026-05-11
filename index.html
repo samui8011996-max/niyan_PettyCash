@@ -556,7 +556,7 @@
     <div class="form-row cols-2">
       <div><label>經手人</label><select id="pkgHandler"></select></div>
       <div style="display:flex; align-items:flex-end;">
-        <button class="btn" onclick="submitPackage()" style="width:100%;">登記包裹支出</button>
+        <button class="btn" id="submitPackageBtn" onclick="submitPackage()" style="width:100%;">登記包裹支出</button>
       </div>
     </div>
     <input type="text" id="pkgHandlerOther" placeholder="其他經手人姓名" style="display:none; margin-top:8px;">
@@ -609,7 +609,7 @@
     <div class="form-row cols-2" style="margin-top:16px;">
       <div><label>經手人</label><select id="salesHandler"></select></div>
       <div style="display:flex; align-items:flex-end;">
-        <button class="btn" onclick="submitSales()" style="width:100%;">登記銷售收入</button>
+        <button class="btn" id="submitSalesBtn" onclick="submitSales()" style="width:100%;">登記銷售收入</button>
       </div>
     </div>
     <input type="text" id="salesHandlerOther" placeholder="其他經手人姓名" style="display:none; margin-top:8px;">
@@ -631,7 +631,7 @@
       </div>
     </div>
     <input type="text" id="refillHandlerOther" placeholder="其他登記人姓名" style="display:none; margin-bottom:12px;">
-    <button class="btn" onclick="submitRefill()">登記零用金補充</button>
+    <button class="btn" id="submitRefillBtn" onclick="submitRefill()">登記零用金補充</button>
     <div class="divider"></div>
     <h3 style="font-family:'Fraunces',serif; font-weight:500; font-size:17px; margin-bottom:14px; color:var(--green);">② 其他收入</h3>
     <div class="form-row cols-3">
@@ -642,7 +642,7 @@
     <div class="form-row cols-2">
       <div><label>經手人</label><select id="incomeHandler"></select></div>
       <div style="display:flex; align-items:flex-end;">
-        <button class="btn" onclick="submitIncome()" style="width:100%;">登記其他收入</button>
+        <button class="btn" id="submitIncomeBtn" onclick="submitIncome()" style="width:100%;">登記其他收入</button>
       </div>
     </div>
     <input type="text" id="incomeHandlerOther" placeholder="其他經手人姓名" style="display:none; margin-top:8px;">
@@ -656,7 +656,7 @@
     <div class="form-row cols-2">
       <div><label>經手人</label><select id="expenseHandler"></select></div>
       <div style="display:flex; align-items:flex-end;">
-        <button class="btn btn-danger" onclick="submitExpense()" style="width:100%;">登記其他支出</button>
+        <button class="btn btn-danger" id="submitExpenseBtn" onclick="submitExpense()" style="width:100%;">登記其他支出</button>
       </div>
     </div>
     <input type="text" id="expenseHandlerOther" placeholder="其他經手人姓名" style="display:none; margin-top:8px;">
@@ -803,6 +803,38 @@
   let cart = [];
   let pollInterval = null;
   let selectedRows = new Set();
+
+  // ============ 送出鎖:每個按鈕一個 key,避免雙擊送出兩筆 ============
+  const submittingFlags = {};   // key: true 代表正在送出中
+  function lockSubmit(key) {
+    if (submittingFlags[key]) return false;  // 已被鎖,擋下
+    submittingFlags[key] = true;
+    return true;
+  }
+  function unlockSubmit(key) {
+    delete submittingFlags[key];
+  }
+
+  // 包一個共用的送出流程:鎖按鈕 + 改文字 + 解鎖
+  async function runSubmit(key, btnId, busyText, fn) {
+    if (!lockSubmit(key)) return;        // 重複點擊直接擋掉
+    const btn = btnId ? document.getElementById(btnId) : null;
+    let originalText = '';
+    if (btn) {
+      originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = busyText || '處理中…';
+    }
+    try {
+      await fn();
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+      unlockSubmit(key);
+    }
+  }
 
   const $ = id => document.getElementById(id);
   const fmt = n => 'NT$ ' + Number(n||0).toLocaleString();
@@ -1105,10 +1137,13 @@
     $('settleTotal').textContent = '$' + totalSum.toLocaleString();
     $('bentoCountHint').textContent =
       `已選 ${entries.length} 人 · 已上傳 ${entries.length - pendingCount} · 待上傳 ${pendingCount} · 合計 ${fmt(totalSum)}`;
-    $('submitBentoBtn').textContent = pendingCount > 0
-      ? `上傳 ${pendingCount} 筆未上傳的選擇`
-      : '所有選擇都已上傳 ✓';
-    $('submitBentoBtn').disabled = pendingCount === 0;
+    // 注意:這裡只在「沒被送出鎖定」的時候才覆寫按鈕文字
+    if (!submittingFlags['bento']) {
+      $('submitBentoBtn').textContent = pendingCount > 0
+        ? `上傳 ${pendingCount} 筆未上傳的選擇`
+        : '所有選擇都已上傳 ✓';
+      $('submitBentoBtn').disabled = pendingCount === 0;
+    }
   }
 
   async function submitBento() {
@@ -1116,11 +1151,15 @@
     if (!entries.length) return toast('沒有待上傳的選擇', 'error');
     const handler = getHandler('bentoHandler', 'bentoHandlerOther');
     if (!handler) return toast('請選擇經手人', 'error');
-    const date = $('bentoDate').value || today();
+
+    // 用送出鎖,避免雙擊
+    if (!lockSubmit('bento')) return;
     const btn = $('submitBentoBtn');
+    const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = '上傳中…';
 
+    const date = $('bentoDate').value || today();
     const ledger = [];
     let bentoSum = 0, subsidySum = 0;
 
@@ -1153,16 +1192,17 @@
     });
 
     try {
-      await callPost({
-        action: 'submitLunch',
-        ledger
-      });
+      await callPost({ action: 'submitLunch', ledger });
       toast(`已上傳 ${entries.length} 筆訂餐 · 便當款 $${bentoSum} + 補貼款 $${subsidySum}`, 'success');
       bentoSelections = {};
       setTimeout(refreshAll, 1200);
     } catch (e) {
       toast('上傳失敗:' + e.message, 'error');
       btn.disabled = false;
+      btn.textContent = originalText;
+    } finally {
+      unlockSubmit('bento');
+      // 注意:成功時不還原按鈕(因為 refreshAll 會重新算 disabled/文字)
     }
   }
 
@@ -1170,27 +1210,29 @@
     $('pkgCompanyOther').style.display = e.target.value === '其他' ? 'block' : 'none';
   });
 
-  async function submitPackage() {
-    const amount = Number($('pkgAmount').value || 0);
-    if (amount <= 0) return toast('請輸入代收款項', 'error');
-    let company = $('pkgCompany').value;
-    if (company === '其他') {
-      const o = $('pkgCompanyOther').value.trim();
-      if (!o) return toast('請輸入物流公司名稱', 'error');
-      company = '其他-' + o;
-    }
-    const handler = getHandler('pkgHandler', 'pkgHandlerOther');
-    const date = $('pkgDate').value || today();
-    try {
-      await callPost({
-        action: 'append',
-        record: { date, item: `包裹【${company}】代收`, type: '支出', income: '', expense: amount, handler }
-      });
-      toast('已登記包裹支出', 'success');
-      $('pkgAmount').value = '';
-      $('pkgCompanyOther').value = '';
-      setTimeout(refreshAll, 1200);
-    } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+  function submitPackage() {
+    runSubmit('package', 'submitPackageBtn', '上傳中…', async () => {
+      const amount = Number($('pkgAmount').value || 0);
+      if (amount <= 0) return toast('請輸入代收款項', 'error');
+      let company = $('pkgCompany').value;
+      if (company === '其他') {
+        const o = $('pkgCompanyOther').value.trim();
+        if (!o) return toast('請輸入物流公司名稱', 'error');
+        company = '其他-' + o;
+      }
+      const handler = getHandler('pkgHandler', 'pkgHandlerOther');
+      const date = $('pkgDate').value || today();
+      try {
+        await callPost({
+          action: 'append',
+          record: { date, item: `包裹【${company}】代收`, type: '支出', income: '', expense: amount, handler }
+        });
+        toast('已登記包裹支出', 'success');
+        $('pkgAmount').value = '';
+        $('pkgCompanyOther').value = '';
+        setTimeout(refreshAll, 1200);
+      } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+    });
   }
 
   function renderProductGrid() {
@@ -1295,96 +1337,104 @@ function calcCartTotal() {
   $('discountType').addEventListener('change', updateCartTotal);
   $('discountValue').addEventListener('input', updateCartTotal);
 
-  async function submitSales() {
-    if (!cart.length) return toast('購物車為空', 'error');
-    const handler = getHandler('salesHandler', 'salesHandlerOther');
-    const date = $('salesDate').value || today();
-    const { total } = calcCartTotal();
-    const items = cart.map(c => `${c.name}x${c.qty}`).join('、');
-    let desc = `銷售【${items}】`;
-    const type = $('discountType').value;
-    const val = Number($('discountValue').value || 0);
-  if (type === 'employee') desc += ` (員工價·七折)`;
-else if (type === 'percent' && val) desc += ` (${val}折)`;
-else if (type === 'amount' && val) desc += ` (折${val}元)`;
-    try {
-      await callPost({
-        action: 'append',
-        record: { date, item: desc, type: '收入', income: total, expense: '', handler }
-      });
-      toast(`已登記銷售 ${fmt(total)}`, 'success');
-      cart = [];
-      $('discountType').value = 'none';
-      $('discountValue').value = '';
-      $('cashReceived').value = '';
-      $('cashChange').textContent = 'NT$ 0';
-      renderProductGrid();
-      renderCart();
-      setTimeout(refreshAll, 1200);
-    } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+  function submitSales() {
+    runSubmit('sales', 'submitSalesBtn', '上傳中…', async () => {
+      if (!cart.length) return toast('購物車為空', 'error');
+      const handler = getHandler('salesHandler', 'salesHandlerOther');
+      const date = $('salesDate').value || today();
+      const { total } = calcCartTotal();
+      const items = cart.map(c => `${c.name}x${c.qty}`).join('、');
+      let desc = `銷售【${items}】`;
+      const type = $('discountType').value;
+      const val = Number($('discountValue').value || 0);
+      if (type === 'employee') desc += ` (員工價·七折)`;
+      else if (type === 'percent' && val) desc += ` (${val}折)`;
+      else if (type === 'amount' && val) desc += ` (折${val}元)`;
+      try {
+        await callPost({
+          action: 'append',
+          record: { date, item: desc, type: '收入', income: total, expense: '', handler }
+        });
+        toast(`已登記銷售 ${fmt(total)}`, 'success');
+        cart = [];
+        $('discountType').value = 'none';
+        $('discountValue').value = '';
+        $('cashReceived').value = '';
+        $('cashChange').textContent = 'NT$ 0';
+        renderProductGrid();
+        renderCart();
+        setTimeout(refreshAll, 1200);
+      } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+    });
   }
 
   $('refillHandler').addEventListener('change', e => {
     $('refillHandlerOther').style.display = e.target.value === '其他' ? 'block' : 'none';
   });
 
-  async function submitRefill() {
-    const amount = Number($('refillAmount').value || 0);
-    if (amount <= 0) return toast('請輸入金額', 'error');
-    let handler = $('refillHandler').value;
-    if (handler === '其他') {
-      const o = $('refillHandlerOther').value.trim();
-      if (!o) return toast('請輸入登記人姓名', 'error');
-      handler = '其他-' + o;
-    }
-    const date = $('refillDate').value || today();
-    try {
-      await callPost({
-        action: 'append',
-        record: { date, item: '零用金補充', type: '收入', income: amount, expense: '', handler }
-      });
-      toast('已登記零用金補充', 'success');
-      $('refillAmount').value = '';
-      setTimeout(refreshAll, 1200);
-    } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+  function submitRefill() {
+    runSubmit('refill', 'submitRefillBtn', '上傳中…', async () => {
+      const amount = Number($('refillAmount').value || 0);
+      if (amount <= 0) return toast('請輸入金額', 'error');
+      let handler = $('refillHandler').value;
+      if (handler === '其他') {
+        const o = $('refillHandlerOther').value.trim();
+        if (!o) return toast('請輸入登記人姓名', 'error');
+        handler = '其他-' + o;
+      }
+      const date = $('refillDate').value || today();
+      try {
+        await callPost({
+          action: 'append',
+          record: { date, item: '零用金補充', type: '收入', income: amount, expense: '', handler }
+        });
+        toast('已登記零用金補充', 'success');
+        $('refillAmount').value = '';
+        setTimeout(refreshAll, 1200);
+      } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+    });
   }
 
-  async function submitIncome() {
-    const amount = Number($('incomeAmount').value || 0);
-    const reason = $('incomeReason').value.trim();
-    if (amount <= 0) return toast('請輸入金額', 'error');
-    if (!reason) return toast('請填寫事由', 'error');
-    const handler = getHandler('incomeHandler', 'incomeHandlerOther');
-    const date = $('incomeDate').value || today();
-    try {
-      await callPost({
-        action: 'append',
-        record: { date, item: `其他收入【${reason}】`, type: '收入', income: amount, expense: '', handler }
-      });
-      toast('已登記其他收入', 'success');
-      $('incomeAmount').value = '';
-      $('incomeReason').value = '';
-      setTimeout(refreshAll, 1200);
-    } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+  function submitIncome() {
+    runSubmit('income', 'submitIncomeBtn', '上傳中…', async () => {
+      const amount = Number($('incomeAmount').value || 0);
+      const reason = $('incomeReason').value.trim();
+      if (amount <= 0) return toast('請輸入金額', 'error');
+      if (!reason) return toast('請填寫事由', 'error');
+      const handler = getHandler('incomeHandler', 'incomeHandlerOther');
+      const date = $('incomeDate').value || today();
+      try {
+        await callPost({
+          action: 'append',
+          record: { date, item: `其他收入【${reason}】`, type: '收入', income: amount, expense: '', handler }
+        });
+        toast('已登記其他收入', 'success');
+        $('incomeAmount').value = '';
+        $('incomeReason').value = '';
+        setTimeout(refreshAll, 1200);
+      } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+    });
   }
 
-  async function submitExpense() {
-    const amount = Number($('expenseAmount').value || 0);
-    const reason = $('expenseReason').value.trim();
-    if (amount <= 0) return toast('請輸入金額', 'error');
-    if (!reason) return toast('請填寫事由', 'error');
-    const handler = getHandler('expenseHandler', 'expenseHandlerOther');
-    const date = $('expenseDate').value || today();
-    try {
-      await callPost({
-        action: 'append',
-        record: { date, item: `其他支出【${reason}】`, type: '支出', income: '', expense: amount, handler }
-      });
-      toast('已登記其他支出', 'success');
-      $('expenseAmount').value = '';
-      $('expenseReason').value = '';
-      setTimeout(refreshAll, 1200);
-    } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+  function submitExpense() {
+    runSubmit('expense', 'submitExpenseBtn', '上傳中…', async () => {
+      const amount = Number($('expenseAmount').value || 0);
+      const reason = $('expenseReason').value.trim();
+      if (amount <= 0) return toast('請輸入金額', 'error');
+      if (!reason) return toast('請填寫事由', 'error');
+      const handler = getHandler('expenseHandler', 'expenseHandlerOther');
+      const date = $('expenseDate').value || today();
+      try {
+        await callPost({
+          action: 'append',
+          record: { date, item: `其他支出【${reason}】`, type: '支出', income: '', expense: amount, handler }
+        });
+        toast('已登記其他支出', 'success');
+        $('expenseAmount').value = '';
+        $('expenseReason').value = '';
+        setTimeout(refreshAll, 1200);
+      } catch (e) { toast('登記失敗:' + e.message, 'error'); }
+    });
   }
 
   function setSettleDateToday() {
@@ -1464,10 +1514,9 @@ else if (type === 'amount' && val) desc += ` (折${val}元)`;
   function renderRecords() {
     const tbody = $('recordsBody');
     const kw = $('filterKeyword').value.trim().toLowerCase();
-    const fd = $('filterDate').value;   // 日期篩選(單一日期)
+    const fd = $('filterDate').value;
     const ft = $('filterType').value;
 
-    // 控制「清除日期」按鈕狀態
     $('filterDateClear').disabled = !fd;
 
     const filtered = allRecords.filter(r => {
@@ -1587,6 +1636,9 @@ else if (type === 'amount' && val) desc += ` (折${val}元)`;
       closeDeleteConfirm();
       return;
     }
+
+    // 用送出鎖,避免雙擊
+    if (!lockSubmit('delete')) return;
     const btn = $('confirmDeleteBtn');
     btn.disabled = true;
     btn.textContent = '刪除中…';
@@ -1607,13 +1659,13 @@ else if (type === 'amount' && val) desc += ` (折${val}元)`;
       toast(`已刪除 ${targets.length} 筆記錄`, 'success');
       selectedRows.clear();
       closeDeleteConfirm();
-      btn.disabled = false;
-      btn.textContent = '確認刪除';
       setTimeout(refreshAll, 1200);
     } catch (e) {
       toast('刪除失敗:' + e.message, 'error');
+    } finally {
       btn.disabled = false;
       btn.textContent = '確認刪除';
+      unlockSubmit('delete');
     }
   }
 
