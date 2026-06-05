@@ -62,7 +62,7 @@
   h1 .zh { font-family: 'Noto Serif TC', serif; font-weight: 500; margin-left: 12px; }
  .subtitle { margin-top: 10px; font-size: 13px; color: var(--ink-soft); font-style: normal; font-weight: 700; }
   .balance-bar {
-    background: var(--ink); color: var(--bg-card); border-radius: 2px;
+    background: var(--ink); color: var(--bg-card); border-radius: 14px;
     padding: 20px 28px; margin-bottom: 36px; display: flex;
     justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
     box-shadow: var(--shadow);
@@ -76,27 +76,41 @@
   .balance-bar .value.total { font-size: 28px; color: var(--accent-soft); }
   .sync-status {
     font-size: 12px; padding: 4px 10px; border: 1px solid rgba(196, 165, 116, 0.4);
-    border-radius: 2px; color: var(--accent-soft);
+    border-radius: 12px; color: var(--accent-soft);
     display: flex; align-items: center; gap: 6px;
   }
   .sync-status.connected { color: #8fbc7a; border-color: rgba(143, 188, 122, 0.5); }
   .sync-status .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .sync-status.connected .dot { animation: pulse 2s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
-  .tab {
-    padding: 14px 22px; background: none; border: none;
-    font-family: 'Noto Serif TC', serif; font-size: 15px; color: var(--ink-soft);
-    cursor: pointer; position: relative; white-space: nowrap; transition: color 0.2s;
-    border-bottom: 2px solid transparent; margin-bottom: -1px;
-  }
-  .tab:hover { color: var(--ink); }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
-  .tab .num { font-family: 'Fraunces', serif; font-style: italic; font-size: 12px; margin-right: 6px; opacity: 0.7; }
+ .tabs {
+  display: flex; gap: 4px; padding: 5px;
+  background: rgba(26,26,26,0.04);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  margin-bottom: 24px;
+}
+.tab {
+  flex: 1 0 auto; min-width: 60px;
+  padding: 11px 16px; background: transparent; border: none;
+  border-radius: 8px;
+  font-family: 'Noto Serif TC', serif; font-size: 15px; color: var(--ink-soft);
+  cursor: pointer; white-space: nowrap; text-align: center;
+  transition: all 0.2s ease;
+}
+.tab:hover { color: var(--ink); background: rgba(255,255,255,0.55); }
+.tab.active {
+  color: var(--accent); background: var(--bg-card);
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.tab .num { font-family: 'Fraunces', serif; font-style: italic; font-size: 12px; margin-right: 6px; opacity: 0.7; }
   .panel {
-    background: var(--bg-card); padding: 32px; border: 1px solid var(--line);
-    border-top: none; margin-bottom: 32px; display: none; box-shadow: var(--shadow);
-  }
+  background: var(--bg-card); padding: 32px;
+  border: 1px solid var(--line); border-radius: 10px;
+  margin-bottom: 32px; display: none; box-shadow: var(--shadow);
+}
   .panel.active { display: block; animation: fadeIn 0.3s ease; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   .panel-header {
@@ -161,9 +175,9 @@
   .bento-date .refresh-btn {
     margin-left: auto; background: none; border: 1px solid var(--line);
     padding: 6px 12px; cursor: pointer; font-size: 12px; color: var(--ink-soft);
-    border-radius: 2px; font-family: 'Noto Serif TC', serif;
+    border-radius: 8px;; font-family: 'Noto Serif TC', serif;
   }
-  .bento-date .refresh-btn:hover { background: var(--ink); color: white; border-color: var(--ink); }
+  .bento-date .refresh-btn:hover { background: var(--ink); color: white; border-color: var(--ink); border-radius: 10px;}
   .bento-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
     gap: 14px; margin-bottom: 24px;
@@ -171,6 +185,7 @@
   .bento-card {
     background: white; border: 1px solid var(--line);
     padding: 16px; transition: all 0.2s; position: relative;
+    border-radius: 12px;
   }
   .bento-card.has-selection { border-color: var(--accent); background: #fff9f5; }
   .bento-card.confirmed { border-color: var(--live); background: #f4f9f4; }
@@ -195,7 +210,7 @@
   .bento-card.confirmed select, .bento-card.confirmed input { pointer-events: none; opacity: 0.7; }
   .order-summary {
     background: white; border: 1px solid var(--line);
-    padding: 18px; margin-bottom: 20px;
+    padding: 18px; margin-bottom: 20px;border-radius: 10px;
   }
   .order-summary h3 {
     font-family: 'Fraunces', serif; font-weight: 500; font-size: 16px;
@@ -223,7 +238,7 @@
   }
   .settle-item {
     background: var(--bg); padding: 12px 14px;
-    border: 1px solid var(--line); border-radius: 2px;
+    border: 1px solid var(--line); border-radius: 8px;
     display: flex; flex-direction: column; gap: 4px;
   }
   .settle-item.total {
@@ -493,11 +508,8 @@
   .settle-list li .s-type.subsidy { background: var(--accent-soft); color: var(--ink); }
   .divider { height: 1px; background: var(--line); margin: 20px 0; }
   @media (max-width: 640px) {
-    .container { padding: 20px 14px 60px; }
-    .panel { padding: 20px 16px; }
-    .balance-bar { padding: 16px; flex-direction: column; align-items: flex-start; }
-    .tab { padding: 12px 14px; font-size: 14px; }
-  }
+  .tab { padding: 10px 10px; font-size: 14px; min-width: 56px; }
+}
 </style>
 </head>
 <body>
