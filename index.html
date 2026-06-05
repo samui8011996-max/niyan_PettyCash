@@ -507,6 +507,30 @@
   @media (max-width: 640px) {
   .tab { padding: 10px 10px; font-size: 14px; min-width: 56px; }
 }
+/* ===== 圓潤化補丁:按鈕 + 卡片統一圓角 ===== */
+  .btn { border-radius: 10px; }
+  .btn-small { border-radius: 8px; }
+  .settings-btn { border-radius: 10px; }
+  .records-filter .date-clear-btn { border-radius: 8px; }
+  .cart-list li .cart-qty-btn { border-radius: 7px; }
+
+  input[type="text"], input[type="number"], input[type="date"],
+  select, textarea { border-radius: 8px; }
+
+  .product-card     { border-radius: 10px; }
+  .stat-box         { border-radius: 10px; }
+  .bento-date       { border-radius: 10px; }
+  .delete-bar       { border-radius: 10px; }
+  .cart-discount-row{ border-radius: 8px; }
+  .settle-list      { border-radius: 8px; }
+  .delete-preview-list { border-radius: 8px; }
+  .cart-box         { border-radius: 12px; }
+  .lunch-settle-box { border-radius: 12px; }
+  .modal            { border-radius: 14px; }
+  .toast            { border-radius: 10px; }
+
+  /* 記錄表格:用外框包成圓角(深色表頭的上方兩角也會跟著圓) */
+  .records-wrap { border: 1px solid var(--line); border-radius: 12px; }
 </style>
 </head>
 <body>
