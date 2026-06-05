@@ -530,12 +530,14 @@
   .modal            { border-radius: 14px; }
   .toast            { border-radius: 10px; }
   .cancel-bento-btn {
-    margin-top: 10px; width: 100%; padding: 6px 0;
-    font-size: 12px; font-family: 'Noto Serif TC', serif;
+    display: block; width: fit-content; margin: 8px 0 0 auto;
+    padding: 3px 12px; font-size: 11px;
+    font-family: 'Noto Serif TC', serif;
     background: none; border: 1px solid var(--live);
-    color: var(--live); border-radius: 8px; cursor: pointer;
+    color: var(--live); border-radius: 999px; cursor: pointer;
     transition: all 0.2s;
   }
+  .cancel-bento-btn:hover { background: var(--live); color: #fff; }
   .cancel-bento-btn:hover { background: var(--live); color: #fff; }
 
   /* 記錄表格:用外框包成圓角(深色表頭的上方兩角也會跟著圓) */
