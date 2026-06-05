@@ -289,25 +289,72 @@
     border-top: 2px solid var(--ink); font-weight: 600; font-size: 18px;
   }
   .cart-total .amount { font-family: 'JetBrains Mono', monospace; color: var(--green); }
-  .record-table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
-  .record-table th {
-    background: var(--ink); color: var(--bg-card);
-    padding: 10px 12px; text-align: left;
-    font-family: 'Fraunces', serif; font-weight: 500;
-    font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
-  }
-  .record-table td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); }
-  .record-table tr:hover td { background: var(--bg); }
-  .record-table tr.row-selected td { background: #fff5f5 !important; }
-  .record-table .date-col {
-    font-family: 'JetBrains Mono', monospace; font-size: 13px;
-    color: var(--ink-soft); white-space: nowrap;
-  }
-  .record-table .amount-in { color: var(--green); font-family: 'JetBrains Mono', monospace; font-weight: 500; }
-  .record-table .amount-out { color: var(--red); font-family: 'JetBrains Mono', monospace; font-weight: 500; }
-  .record-table .check-col { width: 40px; text-align: center; }
-  .record-table .check-col input { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent); }
-  .records-wrap { overflow-x: auto; }
+.records-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 14px;
+  min-width: 520px; /* 強制最小寬度，超出就橫捲 */
+}
+.record-table th {
+  background: var(--ink); color: var(--bg-card);
+  padding: 10px 10px; text-align: left;
+  font-family: 'Fraunces', serif; font-weight: 500;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.record-table td {
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap; /* 每格文字不換行 */
+  vertical-align: middle;
+}
+.record-table tr:hover td { background: var(--bg); }
+.record-table tr.row-selected td { background: #fff5f5 !important; }
+.record-table .date-col {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+/* 項目欄允許換行，避免長文字撐爆整表 */
+.record-table td:nth-child(3) {
+  white-space: normal;
+  min-width: 160px;
+  max-width: 999px; /* 不限制，讓它自然撐開 */
+  word-break: break-word;
+  line-height: 1.6;
+}
+/* 固定其他欄寬，保護它們不被項目欄擠壓 */
+.record-table th:nth-child(1),
+.record-table td:nth-child(1) { width: 36px; }   /* checkbox */
+
+.record-table th:nth-child(2),
+.record-table td:nth-child(2) { width: 90px; }   /* 日期 */
+
+.record-table th:nth-child(4),
+.record-table td:nth-child(4) { width: 80px; }   /* 收入 */
+
+.record-table th:nth-child(5),
+.record-table td:nth-child(5) { width: 80px; }   /* 支出 */
+
+.record-table th:nth-child(6),
+.record-table td:nth-child(6) { width: 60px; }   /* 經手人 */
+.record-table .amount-in {
+  color: var(--green);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.record-table .amount-out {
+  color: var(--red);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.record-table .check-col { width: 36px; text-align: center; padding: 10px 4px; }
+.record-table .check-col input { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent); }
   .records-filter { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
   .records-filter input[type="text"], .records-filter select { width: auto; flex: 1; min-width: 140px; }
   .records-filter .date-filter-group {
