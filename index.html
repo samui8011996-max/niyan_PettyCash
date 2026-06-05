@@ -1157,7 +1157,7 @@
           <input type="checkbox" ${sel?.lessRice?'checked':''} onchange="toggleLessRice('${person}', this.checked)">
           少飯
         </label>
-        ${confirmed ? `<button class="cancel-bento-btn" onclick="cancelBento('${person}')">↩ 取消重選</button>` : ''}
+        ${confirmed ? `<button class="cancel-bento-btn" onclick="cancelBento('${person}')">取消重選</button>` : ''}
       `;
       if (confirmed) card.classList.add('confirmed');
       else if (localSel) card.classList.add('has-selection');
