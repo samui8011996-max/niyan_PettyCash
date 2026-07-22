@@ -894,7 +894,9 @@
 
   const POLL_INTERVAL_MS = 15000;
 
+  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxkIig1MhcMt5pcpv6VAl6DcJcSgleHQFfBtVb_rGvT7oaRLTM2xIlX7WZ3KTFBqdbD/exec';
   let settings = JSON.parse(localStorage.getItem('pc_settings_v2') || '{}');
+  if (!settings.webhookUrl) settings.webhookUrl = DEFAULT_WEBHOOK_URL;
   let allRecords = [];
   let bentoSelections = {};
   let confirmedBento = {};
