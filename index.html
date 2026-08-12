@@ -833,8 +833,13 @@
   <div class="modal">
     <h2>系統設定</h2>
     <p style="font-size:13px; color:var(--ink-soft); margin-bottom:16px; line-height:1.7;">
-      Web App URL 已內建,所有人共用同一份資料,無需另外設定。
+      填入 Google Apps Script 部署後的 Web App URL,所有人只要填同一個網址,就能共用資料。
     </p>
+    <div class="field-group">
+      <label>Web App URL <span style="color:var(--red);">*</span></label>
+      <input type="text" id="webhookUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      <div class="help-text">部署 Google Apps Script 後取得的執行網址</div>
+    </div>
     <div class="field-group">
       <label>試算表連結(選填)</label>
       <input type="text" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/...">
@@ -843,7 +848,7 @@
     <div class="modal-actions">
       <button class="btn btn-outline btn-small" onclick="testConnection()">測試連線</button>
       <button class="btn btn-outline btn-small" onclick="closeSettings()">取消</button>
-      <button class="btn btn-small" onclick="saveSettings()">儲存</button>
+      <button class="btn btn-small" onclick="saveSettings()">儲存並重新載入</button>
     </div>
   </div>
 </div>
@@ -889,8 +894,9 @@
 
   const POLL_INTERVAL_MS = 15000;
 
-  const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbw5nBCVviUa8a_h9PSx9ijEwGiVT-rpAqBgjVFJX4w/dev';
+  const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxkIig1MhcMt5pcpv6VAl6DcJcSgleHQFfBtVb_rGvT7oaRLTM2xIlX7WZ3KTFBqdbD/exec';
   let settings = JSON.parse(localStorage.getItem('pc_settings_v2') || '{}');
+  if (!settings.webhookUrl) settings.webhookUrl = DEFAULT_WEBHOOK_URL;
   let allRecords = [];
   let bentoSelections = {};
   let confirmedBento = {};
@@ -942,6 +948,7 @@
   }
 
   function saveSettings() {
+    settings.webhookUrl = $('webhookUrl').value.trim();
     settings.sheetUrl = $('sheetUrl').value.trim();
     localStorage.setItem('pc_settings_v2', JSON.stringify(settings));
     closeSettings();
@@ -965,6 +972,7 @@
   }
 
   function openSettings() {
+    $('webhookUrl').value = settings.webhookUrl || '';
     $('sheetUrl').value = settings.sheetUrl || '';
     $('settingsModal').classList.add('show');
   }
@@ -977,6 +985,7 @@
 
   function callGet(action, params = {}) {
     return new Promise((resolve, reject) => {
+      if (!settings.webhookUrl) return reject(new Error('未設定 Web App URL'));
       const cbName = 'cb_' + Math.random().toString(36).slice(2);
       const qs = new URLSearchParams({ action, callback: cbName, ...params });
       const script = document.createElement('script');
@@ -987,13 +996,14 @@
         if (script.parentNode) script.parentNode.removeChild(script);
       }
       script.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error('載入失敗')); };
-      script.src = WEBHOOK_URL + '?' + qs.toString();
+      script.src = settings.webhookUrl + '?' + qs.toString();
       document.body.appendChild(script);
     });
   }
 
   async function callPost(payload) {
-    await fetch(WEBHOOK_URL, {
+    if (!settings.webhookUrl) throw new Error('未設定 Web App URL');
+    await fetch(settings.webhookUrl, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
@@ -1060,6 +1070,7 @@
   }
 
   async function refreshAll() {
+    if (!settings.webhookUrl) return;
     try {
       updateSyncStatus('loading');
       const res = await callGet('getAll');
@@ -1811,11 +1822,17 @@ function calcCartTotal() {
   }
 
   async function testConnection() {
+    const url = $('webhookUrl').value.trim();
+    if (!url) return toast('請先填入 Web App URL', 'error');
+    const oldUrl = settings.webhookUrl;
+    settings.webhookUrl = url;
     try {
       const res = await callGet('ping');
-      if (res.status === 'ok') toast('✓ 連線成功!', 'success');
+      settings.webhookUrl = oldUrl;
+      if (res.status === 'ok') toast('✓ 連線成功!可以儲存設定了', 'success');
       else toast('連線有回應但格式不對', 'error');
     } catch (e) {
+      settings.webhookUrl = oldUrl;
       toast('連線失敗:' + e.message, 'error');
     }
   }
@@ -1842,6 +1859,13 @@ function calcCartTotal() {
       $(id).value = today();
     });
     renderProductGrid();
+
+    if (!settings.webhookUrl) {
+      $('sharedBanner').classList.add('offline');
+      $('sharedBannerText').textContent = '尚未設定 Web App URL — 請點右上角 ⚙ 進行設定';
+      renderBentoGrid();
+      return;
+    }
 
     await refreshAll();
     startPolling();
