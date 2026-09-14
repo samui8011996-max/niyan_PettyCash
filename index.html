@@ -1142,6 +1142,7 @@
       updateSyncStatus('error');
       $('sharedBanner').classList.add('offline');
       $('sharedBannerText').textContent = '⚠ 無法連線到試算表 — ' + e.message;
+      renderBentoGrid();
     }
   }
 
