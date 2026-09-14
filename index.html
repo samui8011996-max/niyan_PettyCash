@@ -505,6 +505,24 @@
   .settle-list li .s-type.bento { background: var(--accent); color: white; }
   .settle-list li .s-type.subsidy { background: var(--accent-soft); color: var(--ink); }
   .divider { height: 1px; background: var(--line); margin: 20px 0; }
+  .store-legend {
+    display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;
+  }
+  .store-legend .store-chip {
+    display: flex; align-items: center; gap: 10px;
+    background: white; border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 14px;
+  }
+  .store-legend .store-chip img {
+    width: 36px; height: 36px; object-fit: cover; border-radius: 8px;
+    border: 1px solid var(--line-soft);
+  }
+  .store-legend .store-chip .store-name {
+    font-family: 'Fraunces', serif; font-size: 14px; font-weight: 500;
+  }
+  .store-legend .store-divider {
+    width: 1px; align-self: stretch; background: var(--line); margin: 0 2px;
+  }
   @media (max-width: 640px) {
   .tab { padding: 10px 10px; font-size: 14px; min-width: 56px; }
 }
@@ -597,6 +615,7 @@
       <span style="font-size:13px; color:var(--ink-soft);" id="bentoCountHint">尚未選擇</span>
       <button class="refresh-btn" onclick="refreshAll()">↻ 手動同步</button>
     </div>
+    <div class="store-legend" id="storeLegend"></div>
     <div class="bento-grid" id="bentoGrid"></div>
     <div class="order-summary" id="orderSummary" style="display:none;">
       <h3>訂單摘要</h3>
@@ -875,11 +894,36 @@
 <script>
   const PEOPLE = ['妍儒','佳宜','維妮','淑莉','美菲','志益','育齊','拍拍','志偉','其他'];
   const BENTO_PEOPLE = ['淑莉','美菲','佳宜','妍儒','志益','育齊','拍拍','志偉','維妮','其他1','其他2','其他3'];
-  const BENTO_MENU = [
-    { name: '雞排', price: 100 }, { name: '排骨', price: 100 }, { name: '燒肉', price: 100 },
-    { name: '香腸飯', price: 100 }, { name: '烤雞腿', price: 120 },
-    { name: '炸雞腿', price: 120 }, { name: '鯖魚排', price: 120 }, { name: '午餐補助', price: 100 }
+  const BENTO_STORES = [
+    {
+      store: '合豐便當',
+      items: [
+        { name: '雞排', price: 100 }, { name: '排骨', price: 100 }, { name: '燒肉', price: 100 },
+        { name: '香腸飯', price: 100 }, { name: '烤雞腿', price: 120 },
+        { name: '炸雞腿', price: 120 }, { name: '鯖魚排', price: 120 }, { name: '午餐補助', price: 100 }
+      ]
+    },
+    {
+      store: '姐姐',
+      photo: 'jiejie.jpg',
+      items: [
+        { name: '滷肉飯(小)', price: 45 }, { name: '滷肉飯(大)', price: 55 },
+        { name: '焢肉飯', price: 90 }, { name: '鴨肉飯', price: 100 },
+        { name: '雞腿排飯', price: 100 }, { name: '香酥豬排飯', price: 100 },
+        { name: '鴨肉麵(小)', price: 75 }, { name: '鴨肉麵(大)', price: 85 },
+        { name: '鴨肉粄條(小)', price: 75 }, { name: '鴨肉粄條(大)', price: 85 },
+        { name: '鴨肉冬粉(小)', price: 75 }, { name: '鴨肉冬粉(大)', price: 85 },
+        { name: '沙茶鴨肉麵', price: 90 }, { name: '香酥豬排麵', price: 100 },
+        { name: '貢丸湯', price: 40 }, { name: '餛飩湯', price: 40 }, { name: '魚丸湯', price: 40 },
+        { name: '鴨肉湯', price: 60 }, { name: '肝連湯', price: 60 }, { name: '粉腸湯', price: 60 },
+        { name: '水餃', price: 65 }, { name: '滷蛋', price: 15 }, { name: '豆干', price: 15 },
+        { name: '海帶', price: 15 }, { name: '燙青菜', price: 50 },
+        { name: '肝連', price: 70 }, { name: '粉腸', price: 70 },
+        { name: '豬排(一份)', price: 70 }, { name: '鴨肉(一份)', price: 90 }
+      ]
+    }
   ];
+  const BENTO_MENU = BENTO_STORES.flatMap(s => s.items);
   const PRODUCTS = [
     { name: '巨貓', price: 1880 }, { name: '大貓', price: 590 }, { name: '中貓', price: 390 },
     { name: '小貓', price: 200 }, { name: '星座貓', price: 470 }, { name: '雙手貓三入組', price: 1180 }, { name: '馬貓', price: 690 },
@@ -1133,6 +1177,17 @@
     return v;
   }
 
+  function renderStoreLegend() {
+    const el = $('storeLegend');
+    el.innerHTML = BENTO_STORES.map((store, i) => {
+      const divider = i > 0 ? '<div class="store-divider"></div>' : '';
+      const img = store.photo
+        ? `<img src="${store.photo}" alt="${store.store}" onerror="this.remove()">`
+        : '';
+      return `${divider}<div class="store-chip">${img}<span class="store-name">${store.store}</span></div>`;
+    }).join('');
+  }
+
   function renderBentoGrid() {
     const grid = $('bentoGrid');
     grid.innerHTML = '';
@@ -1144,10 +1199,12 @@
       const localSel = bentoSelections[person];
       const sel = confirmed || localSel;
 
-      const options = ['<option value="">— 今日不點 —</option>']
-        .concat(BENTO_MENU.map(b =>
-          `<option value="${b.name}" ${sel?.item===b.name?'selected':''}>${b.name} · $${b.price}</option>`
-        )).join('');
+      const options = '<option value="">— 今日不點 —</option>' +
+        BENTO_STORES.map(store => '<optgroup label="' + store.store + '">' +
+          store.items.map(b =>
+            `<option value="${b.name}" ${sel?.item===b.name?'selected':''}>${b.name} · $${b.price}</option>`
+          ).join('') +
+        '</optgroup>').join('');
 
       card.innerHTML = `
         <div class="name">
@@ -1859,6 +1916,7 @@ function calcCartTotal() {
       $(id).value = today();
     });
     renderProductGrid();
+    renderStoreLegend();
 
     if (!settings.webhookUrl) {
       $('sharedBanner').classList.add('offline');
