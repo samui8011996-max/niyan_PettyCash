@@ -186,6 +186,13 @@
   }
   .bento-card.has-selection { border-color: var(--accent); background: #fff9f5; }
   .bento-card.confirmed { border-color: var(--live); background: #f4f9f4; }
+  /* 合豐便當 = 金棕色, 姐姐 = 藍色, 午餐補助 = 原本綠色 */
+  .bento-card.has-selection.store-hefeng { border-color: var(--accent-soft); background: #fdf6ea; }
+  .bento-card.confirmed.store-hefeng { border-color: var(--accent-soft); background: #f8ecd6; }
+  .bento-card.has-selection.store-jiejie { border-color: #2f6690; background: #eef6fb; }
+  .bento-card.confirmed.store-jiejie { border-color: #2f6690; background: #e0eef7; }
+  .bento-card.has-selection.store-subsidy { border-color: var(--live); background: #eef8ef; }
+  .bento-card.confirmed.store-subsidy { border-color: var(--live); background: #f4f9f4; }
   .bento-card.confirmed::after {
     content: "✓ 已上傳"; position: absolute; top: 10px; right: 10px;
     font-size: 10px; padding: 2px 8px; background: var(--live); color: white;
@@ -897,6 +904,7 @@
   const BENTO_STORES = [
     {
       store: '合豐便當',
+      slug: 'hefeng',
       items: [
         { name: '雞排', price: 100 }, { name: '排骨', price: 100 }, { name: '燒肉', price: 100 },
         { name: '香腸飯', price: 100 }, { name: '烤雞腿', price: 120 },
@@ -905,6 +913,7 @@
     },
     {
       store: '姐姐',
+      slug: 'jiejie',
       photo: 'jiejie.jpg',
       items: [
         { name: '滷肉飯(小)', price: 45 }, { name: '滷肉飯(大)', price: 55 },
@@ -924,12 +933,17 @@
     },
     {
       store: '午餐補助',
+      slug: 'subsidy',
       items: [
         { name: '午餐補助', price: 100 }
       ]
     }
   ];
   const BENTO_MENU = BENTO_STORES.flatMap(s => s.items);
+  function storeSlugOfItem(itemName) {
+    const store = BENTO_STORES.find(s => s.items.some(i => i.name === itemName));
+    return store ? store.slug : '';
+  }
   const PRODUCTS = [
     { name: '巨貓', price: 1880 }, { name: '大貓', price: 590 }, { name: '中貓', price: 390 },
     { name: '小貓', price: 200 }, { name: '星座貓', price: 470 }, { name: '雙手貓三入組', price: 1180 }, { name: '馬貓', price: 690 },
@@ -1227,6 +1241,10 @@
       `;
       if (confirmed) card.classList.add('confirmed');
       else if (localSel) card.classList.add('has-selection');
+      if (sel) {
+        const slug = storeSlugOfItem(sel.item);
+        if (slug) card.classList.add('store-' + slug);
+      }
 
       grid.appendChild(card);
     });
@@ -1250,8 +1268,11 @@
       $('price-' + person).textContent = '$' + menu.price;
     }
     const card = $('bento-' + person);
+    [...card.classList].filter(c => c.startsWith('store-')).forEach(c => card.classList.remove(c));
     if (bentoSelections[person]) {
       card.classList.add('has-selection');
+      const slug = storeSlugOfItem(bentoSelections[person].item);
+      if (slug) card.classList.add('store-' + slug);
     } else {
       card.classList.remove('has-selection');
       $('price-' + person).textContent = '—';
