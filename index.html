@@ -1897,7 +1897,9 @@ function calcCartTotal() {
   function startPolling() {
     if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(() => {
-      if ($('panel-bento').classList.contains('active') && !document.hidden) {
+      const active = document.activeElement;
+      const isBrowsingSelect = active && active.tagName === 'SELECT' && $('bentoGrid').contains(active);
+      if ($('panel-bento').classList.contains('active') && !document.hidden && !isBrowsingSelect) {
         refreshAll();
       }
     }, POLL_INTERVAL_MS);
