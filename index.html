@@ -186,12 +186,9 @@
   }
   .bento-card.has-selection { border-color: var(--accent); background: #fff9f5; }
   .bento-card.confirmed { border-color: var(--live); background: #f4f9f4; }
-  /* 合豐便當 = 紫色, 姐姐 = 藍色, 午餐補助 = 原本綠色 */
-  .bento-card.has-selection.store-hefeng { border-color: #7c5cbf; background: #f4f0fb; }
-  .bento-card.confirmed.store-hefeng { border-color: #7c5cbf; background: #ebe3f8; }
-  .bento-card.has-selection.store-jiejie { border-color: #2f6690; background: #eef6fb; }
+  /* 已上傳後才依店家分色:合豐便當 = 金棕色, 姐姐 = 藍色, 午餐補助 = 原本綠色。未上傳一律維持紅色 */
+  .bento-card.confirmed.store-hefeng { border-color: var(--accent-soft); background: #f8ecd6; }
   .bento-card.confirmed.store-jiejie { border-color: #2f6690; background: #dcedf8; }
-  .bento-card.has-selection.store-subsidy { border-color: var(--live); background: #eef8ef; }
   .bento-card.confirmed.store-subsidy { border-color: var(--live); background: #f4f9f4; }
   .bento-card.confirmed::after {
     content: "✓ 已上傳"; position: absolute; top: 10px; right: 10px;
@@ -512,24 +509,6 @@
   .settle-list li .s-type.bento { background: var(--accent); color: white; }
   .settle-list li .s-type.subsidy { background: var(--accent-soft); color: var(--ink); }
   .divider { height: 1px; background: var(--line); margin: 20px 0; }
-  .store-legend {
-    display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;
-  }
-  .store-legend .store-chip {
-    display: flex; align-items: center; gap: 10px;
-    background: white; border: 1px solid var(--line); border-radius: 10px;
-    padding: 8px 14px;
-  }
-  .store-legend .store-chip img {
-    width: 36px; height: 36px; object-fit: cover; border-radius: 8px;
-    border: 1px solid var(--line-soft);
-  }
-  .store-legend .store-chip .store-name {
-    font-family: 'Fraunces', serif; font-size: 14px; font-weight: 500;
-  }
-  .store-legend .store-divider {
-    width: 1px; align-self: stretch; background: var(--line); margin: 0 2px;
-  }
   @media (max-width: 640px) {
   .tab { padding: 10px 10px; font-size: 14px; min-width: 56px; }
 }
@@ -622,7 +601,6 @@
       <span style="font-size:13px; color:var(--ink-soft);" id="bentoCountHint">尚未選擇</span>
       <button class="refresh-btn" onclick="refreshAll()">↻ 手動同步</button>
     </div>
-    <div class="store-legend" id="storeLegend"></div>
     <div class="bento-grid" id="bentoGrid"></div>
     <div class="order-summary" id="orderSummary" style="display:none;">
       <h3>訂單摘要</h3>
@@ -1196,17 +1174,6 @@
       return other ? '其他-' + other : '其他';
     }
     return v;
-  }
-
-  function renderStoreLegend() {
-    const el = $('storeLegend');
-    el.innerHTML = BENTO_STORES.map((store, i) => {
-      const divider = i > 0 ? '<div class="store-divider"></div>' : '';
-      const img = store.photo
-        ? `<img src="${store.photo}" alt="${store.store}" onerror="this.remove()">`
-        : '';
-      return `${divider}<div class="store-chip">${img}<span class="store-name">${store.store}</span></div>`;
-    }).join('');
   }
 
   function renderBentoGrid() {
@@ -1944,7 +1911,6 @@ function calcCartTotal() {
       $(id).value = today();
     });
     renderProductGrid();
-    renderStoreLegend();
 
     if (!settings.webhookUrl) {
       $('sharedBanner').classList.add('offline');
