@@ -184,7 +184,7 @@
     padding: 16px; transition: all 0.2s; position: relative;
     border-radius: 12px;
   }
-  .bento-card.has-selection { border-color: var(--live); background: #eef8ef; }
+  .bento-card.has-selection { border-color: var(--accent); background: #fff9f5; }
   .bento-card.confirmed { border-color: var(--live); background: #f4f9f4; }
   .bento-card.confirmed::after {
     content: "✓ 已上傳"; position: absolute; top: 10px; right: 10px;
@@ -198,6 +198,7 @@
   .bento-card .price-tag {
     font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--live);
   }
+  .bento-card.has-selection .price-tag { color: var(--accent); }
   .bento-card select { margin-bottom: 8px; }
   .bento-card .item-list { list-style: none; margin-bottom: 8px; }
   .bento-card .item-row {
@@ -210,6 +211,7 @@
   .bento-card .item-row .item-price {
     font-family: 'JetBrains Mono', monospace; color: var(--live); white-space: nowrap;
   }
+  .bento-card .item-row .item-price.pending { color: var(--accent); }
   .bento-card .item-row .item-tag {
     font-size: 10px; color: var(--live); white-space: nowrap;
   }
@@ -219,7 +221,7 @@
   }
   .bento-card .item-row .less-rice-inline input { width: auto; margin: 0; accent-color: var(--live); }
   .bento-card .item-row .remove-item-btn {
-    background: none; border: none; color: var(--accent); cursor: pointer;
+    background: none; border: none; color: var(--ink-faded); cursor: pointer;
     font-size: 16px; line-height: 1; padding: 0 2px;
   }
   .order-summary {
@@ -1219,7 +1221,7 @@
       `).join('') + pendingItems.map((it, idx) => `
         <li class="item-row">
           <span class="item-name">${it.item}${it.lessRice ? '<span class="meta">(少飯)</span>' : ''}</span>
-          <span class="item-price">$${it.price}</span>
+          <span class="item-price pending">$${it.price}</span>
           ${isHefengItem(it.item) ? `
           <label class="less-rice-inline">
             <input type="checkbox" ${it.lessRice ? 'checked' : ''} onchange="toggleLessRiceItem('${person}', ${idx}, this.checked)">少飯
