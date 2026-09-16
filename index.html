@@ -201,12 +201,14 @@
   .bento-card.has-selection .price-tag { color: var(--accent); }
   .bento-card select { margin-bottom: 8px; }
   .bento-card .item-list { list-style: none; margin-bottom: 8px; }
+  .bento-card .item-row-group {
+    padding: 6px 0; border-bottom: 1px dashed var(--line-soft);
+  }
+  .bento-card .item-row-group:last-child { border-bottom: none; }
   .bento-card .item-row {
     display: flex; align-items: center; gap: 6px;
-    padding: 6px 0; border-bottom: 1px dashed var(--line-soft);
     font-size: 13px;
   }
-  .bento-card .item-row:last-child { border-bottom: none; }
   .bento-card .item-row .item-name { flex: 1; }
   .bento-card .item-row .item-price {
     font-family: 'JetBrains Mono', monospace; color: var(--live); white-space: nowrap;
@@ -224,6 +226,14 @@
     background: none; border: none; color: var(--ink-faded); cursor: pointer;
     font-size: 16px; line-height: 1; padding: 0 2px;
   }
+  .bento-card .variant-picker {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--ink-soft);
+    margin-top: 4px; padding-left: 2px; flex-wrap: wrap;
+  }
+  .bento-card .variant-picker .variant-label { font-weight: 600; color: var(--accent); }
+  .bento-card .variant-picker label { display: flex; align-items: center; gap: 3px; cursor: pointer; }
+  .bento-card .variant-picker input { width: auto; margin: 0; accent-color: var(--accent); }
   .order-summary {
     background: white; border: 1px solid var(--line);
     padding: 18px; margin-bottom: 20px;border-radius: 10px;
@@ -910,15 +920,13 @@
         { name: '滷肉飯(小)', price: 45 }, { name: '滷肉飯(大)', price: 55 },
         { name: '焢肉飯', price: 90 }, { name: '鴨肉飯', price: 100 },
         { name: '雞腿排飯', price: 100 }, { name: '香酥豬排飯', price: 100 },
-        { name: '麵(小/乾)', price: 55 }, { name: '麵(小/湯)', price: 55 },
-        { name: '麵(大/乾)', price: 65 }, { name: '麵(大/湯)', price: 65 },
-        { name: '粄條(小/乾)', price: 55 }, { name: '粄條(小/湯)', price: 55 },
-        { name: '粄條(大/乾)', price: 65 }, { name: '粄條(大/湯)', price: 65 },
-        { name: '鴨肉麵(小)', price: 75 }, { name: '鴨肉麵(大)', price: 85 },
-        { name: '鴨肉粄條(小)', price: 75 }, { name: '鴨肉粄條(大)', price: 85 },
-        { name: '鴨肉冬粉(小)', price: 75 }, { name: '鴨肉冬粉(大)', price: 85 },
-        { name: '沙茶鴨肉麵(乾)', price: 90 }, { name: '沙茶鴨肉麵(湯)', price: 90 },
-        { name: '香酥豬排麵(乾)', price: 100 }, { name: '香酥豬排麵(湯)', price: 100 },
+        { name: '麵', variant: true, priceLabel: '$55/65' },
+        { name: '粄條', variant: true, priceLabel: '$55/65' },
+        { name: '鴨肉麵', variant: true, priceLabel: '$75/85' },
+        { name: '鴨肉粄條', variant: true, priceLabel: '$75/85' },
+        { name: '鴨肉冬粉', variant: true, priceLabel: '$75/85' },
+        { name: '沙茶鴨肉麵', variant: true, priceLabel: '$90' },
+        { name: '香酥豬排麵', variant: true, priceLabel: '$100' },
         { name: '貢丸湯', price: 40 }, { name: '魚丸湯', price: 40 },
         { name: '鴨肉湯', price: 60 }, { name: '肝連湯', price: 60 }, { name: '粉腸湯', price: 60 },
         { name: '滷蛋', price: 15 }, { name: '豆干', price: 15 },
@@ -934,7 +942,48 @@
       ]
     }
   ];
-  const BENTO_MENU = BENTO_STORES.flatMap(s => s.items);
+  const BENTO_VARIANTS = {
+    '麵': { sizePrice: { '小': 55, '大': 65 }, needsType: true },
+    '粄條': { sizePrice: { '小': 55, '大': 65 }, needsType: true },
+    '鴨肉麵': { sizePrice: { '小': 75, '大': 85 } },
+    '鴨肉粄條': { sizePrice: { '小': 75, '大': 85 } },
+    '鴨肉冬粉': { sizePrice: { '小': 75, '大': 85 } },
+    '沙茶鴨肉麵': { price: 90, needsType: true },
+    '香酥豬排麵': { price: 100, needsType: true }
+  };
+  function composeVariantLabel(base, size, type) {
+    const parts = [];
+    if (size) parts.push(size);
+    if (type) parts.push(type);
+    return parts.length ? `${base}(${parts.join('/')})` : base;
+  }
+  function isVariantComplete(sel) {
+    const cfg = BENTO_VARIANTS[sel.item];
+    if (!cfg) return true;
+    return (!cfg.sizePrice || sel.size) && (!cfg.needsType || sel.type);
+  }
+  function recomputeVariantPrice(sel) {
+    const cfg = BENTO_VARIANTS[sel.item];
+    if (!cfg) return;
+    sel.price = isVariantComplete(sel) ? (cfg.sizePrice ? cfg.sizePrice[sel.size] : cfg.price) : 0;
+  }
+  function displayLabel(sel) {
+    const cfg = BENTO_VARIANTS[sel.item];
+    if (!cfg) return sel.item;
+    return composeVariantLabel(sel.item, sel.size, sel.type);
+  }
+  const BENTO_VARIANT_MENU = [];
+  Object.entries(BENTO_VARIANTS).forEach(([base, cfg]) => {
+    const sizes = cfg.sizePrice ? Object.keys(cfg.sizePrice) : [null];
+    const types = cfg.needsType ? ['乾', '湯'] : [null];
+    sizes.forEach(size => {
+      types.forEach(type => {
+        const price = cfg.sizePrice ? cfg.sizePrice[size] : cfg.price;
+        BENTO_VARIANT_MENU.push({ name: composeVariantLabel(base, size, type), price });
+      });
+    });
+  });
+  const BENTO_MENU = BENTO_STORES.flatMap(s => s.items.filter(i => !i.variant)).concat(BENTO_VARIANT_MENU);
   const PRODUCTS = [
     { name: '巨貓', price: 1880 }, { name: '大貓', price: 590 }, { name: '中貓', price: 390 },
     { name: '小貓', price: 200 }, { name: '星座貓', price: 470 }, { name: '雙手貓三入組', price: 1180 }, { name: '馬貓', price: 690 },
@@ -1200,7 +1249,9 @@
     grid.innerHTML = '';
     const options = '<option value="">+ 新增品項</option>' +
       BENTO_STORES.map(store => '<optgroup label="' + store.store + '">' +
-        store.items.map(b => `<option value="${b.name}">${b.name} · $${b.price}</option>`).join('') +
+        store.items.map(b =>
+          `<option value="${b.name}">${b.name} · ${b.variant ? b.priceLabel : '$' + b.price}</option>`
+        ).join('') +
       '</optgroup>').join('');
 
     BENTO_PEOPLE.forEach(person => {
@@ -1213,22 +1264,43 @@
       const total = allItems.reduce((s, i) => s + i.price, 0);
 
       const rowsHtml = confirmedItems.map(it => `
-        <li class="item-row">
-          <span class="item-name">${it.item}${it.lessRice ? '<span class="meta">(少飯)</span>' : ''}</span>
-          <span class="item-price">$${it.price}</span>
-          <span class="item-tag">✓已上傳</span>
+        <li class="item-row-group">
+          <div class="item-row">
+            <span class="item-name">${it.item}${it.lessRice ? '<span class="meta">(少飯)</span>' : ''}</span>
+            <span class="item-price">$${it.price}</span>
+            <span class="item-tag">✓已上傳</span>
+          </div>
         </li>
-      `).join('') + pendingItems.map((it, idx) => `
-        <li class="item-row">
-          <span class="item-name">${it.item}${it.lessRice ? '<span class="meta">(少飯)</span>' : ''}</span>
-          <span class="item-price pending">$${it.price}</span>
-          ${isHefengItem(it.item) ? `
-          <label class="less-rice-inline">
-            <input type="checkbox" ${it.lessRice ? 'checked' : ''} onchange="toggleLessRiceItem('${person}', ${idx}, this.checked)">少飯
-          </label>` : ''}
-          <button class="remove-item-btn" onclick="removeBentoItem('${person}', ${idx})" title="移除">×</button>
+      `).join('') + pendingItems.map((it, idx) => {
+        const cfg = BENTO_VARIANTS[it.item];
+        const complete = isVariantComplete(it);
+        const label = displayLabel(it);
+        return `
+        <li class="item-row-group">
+          <div class="item-row">
+            <span class="item-name">${label}${it.lessRice ? '<span class="meta">(少飯)</span>' : ''}</span>
+            <span class="item-price pending">${complete ? '$' + it.price : '未選規格'}</span>
+            ${isHefengItem(it.item) ? `
+            <label class="less-rice-inline">
+              <input type="checkbox" ${it.lessRice ? 'checked' : ''} onchange="toggleLessRiceItem('${person}', ${idx}, this.checked)">少飯
+            </label>` : ''}
+            <button class="remove-item-btn" onclick="removeBentoItem('${person}', ${idx})" title="移除">×</button>
+          </div>
+          ${cfg && cfg.sizePrice ? `
+          <div class="variant-picker">
+            <span class="variant-label">大小*</span>
+            <label><input type="checkbox" ${it.size==='小'?'checked':''} onchange="setVariantSize('${person}',${idx},'小',this.checked)">小</label>
+            <label><input type="checkbox" ${it.size==='大'?'checked':''} onchange="setVariantSize('${person}',${idx},'大',this.checked)">大</label>
+          </div>` : ''}
+          ${cfg && cfg.needsType ? `
+          <div class="variant-picker">
+            <span class="variant-label">乾湯*</span>
+            <label><input type="checkbox" ${it.type==='乾'?'checked':''} onchange="setVariantType('${person}',${idx},'乾',this.checked)">乾</label>
+            <label><input type="checkbox" ${it.type==='湯'?'checked':''} onchange="setVariantType('${person}',${idx},'湯',this.checked)">湯</label>
+          </div>` : ''}
         </li>
-      `).join('');
+      `;
+      }).join('');
 
       card.innerHTML = `
         <div class="name">
@@ -1249,10 +1321,14 @@
 
   window.addBentoItem = (person, itemName) => {
     if (!itemName) return;
-    const menu = BENTO_MENU.find(b => b.name === itemName);
-    if (!menu) return;
     if (!bentoSelections[person]) bentoSelections[person] = [];
-    bentoSelections[person].push({ item: itemName, price: menu.price, lessRice: false });
+    if (BENTO_VARIANTS[itemName]) {
+      bentoSelections[person].push({ item: itemName, size: null, type: null, price: 0, lessRice: false });
+    } else {
+      const menu = BENTO_MENU.find(b => b.name === itemName);
+      if (!menu) return;
+      bentoSelections[person].push({ item: itemName, price: menu.price, lessRice: false });
+    }
     renderBentoGrid();
   };
 
@@ -1260,6 +1336,22 @@
     if (!bentoSelections[person]) return;
     bentoSelections[person].splice(idx, 1);
     if (!bentoSelections[person].length) delete bentoSelections[person];
+    renderBentoGrid();
+  };
+
+  window.setVariantSize = (person, idx, size, checked) => {
+    const sel = bentoSelections[person] && bentoSelections[person][idx];
+    if (!sel) return;
+    sel.size = checked ? size : null;
+    recomputeVariantPrice(sel);
+    renderBentoGrid();
+  };
+
+  window.setVariantType = (person, idx, type, checked) => {
+    const sel = bentoSelections[person] && bentoSelections[person][idx];
+    if (!sel) return;
+    sel.type = checked ? type : null;
+    recomputeVariantPrice(sel);
     renderBentoGrid();
   };
 
@@ -1319,16 +1411,20 @@ window.cancelBento = async (person) => {
     list.innerHTML = '';
     let bentoSum = 0, subsidySum = 0, pendingCount = 0;
     entries.forEach(({ person, sel, confirmed }) => {
-      const isSubsidy = sel.item === '午餐補助';
-      if (isSubsidy) subsidySum += sel.price;
-      else bentoSum += sel.price;
+      const label = displayLabel(sel);
+      const complete = isVariantComplete(sel);
+      const isSubsidy = label === '午餐補助';
+      if (complete) {
+        if (isSubsidy) subsidySum += sel.price;
+        else bentoSum += sel.price;
+      }
 
       if (!confirmed) pendingCount++;
       const li = document.createElement('li');
       if (confirmed) li.className = 'confirmed-row';
       li.innerHTML = `
-        <span>${person} — ${sel.item}${sel.lessRice?'<span class="meta">(少飯)</span>':''}${confirmed?'<span class="meta">· 已上傳</span>':''}</span>
-        <span class="amount">- $${sel.price}</span>
+        <span>${person} — ${label}${sel.lessRice?'<span class="meta">(少飯)</span>':''}${confirmed?'<span class="meta">· 已上傳</span>':''}${!complete?'<span class="meta" style="color:var(--accent);">(尚未選規格)</span>':''}</span>
+        <span class="amount">${complete ? '- $' + sel.price : '—'}</span>
       `;
       list.appendChild(li);
     });
@@ -1354,6 +1450,8 @@ window.cancelBento = async (person) => {
       (bentoSelections[person] || []).forEach(sel => entries.push({ person, sel }));
     });
     if (!entries.length) return toast('沒有待上傳的選擇', 'error');
+    const incomplete = entries.find(({ sel }) => !isVariantComplete(sel));
+    if (incomplete) return toast(`${incomplete.person} 的「${incomplete.sel.item}」還沒選規格(大小/乾湯),請完成後再上傳`, 'error');
     const handler = getHandler('bentoHandler', 'bentoHandlerOther');
     if (!handler) return toast('請選擇經手人', 'error');
 
@@ -1369,7 +1467,8 @@ window.cancelBento = async (person) => {
     let bentoSum = 0, subsidySum = 0;
 
     entries.forEach(({ person, sel }) => {
-      const isSubsidy = sel.item === '午餐補助';
+      const label = displayLabel(sel);
+      const isSubsidy = label === '午餐補助';
       if (isSubsidy) {
         ledger.push({
           date,
@@ -1381,12 +1480,12 @@ window.cancelBento = async (person) => {
         });
         subsidySum += sel.price;
       } else {
-        const label = sel.lessRice
-          ? `${person} — ${sel.item}(少飯) — 便當`
-          : `${person} — ${sel.item} — 便當`;
+        const itemLabel = sel.lessRice
+          ? `${person} — ${label}(少飯) — 便當`
+          : `${person} — ${label} — 便當`;
         ledger.push({
           date,
-          item: label,
+          item: itemLabel,
           type: '支出',
           income: '',
           expense: sel.price,
