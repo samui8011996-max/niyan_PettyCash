@@ -917,7 +917,7 @@
       store: '姐姐',
       photo: 'jiejie.jpg',
       items: [
-        { name: '滷肉飯(小)', price: 45 }, { name: '滷肉飯(大)', price: 55 },
+        { name: '滷肉飯', variant: true, priceLabel: '$45/55' },
         { name: '焢肉飯', price: 90 }, { name: '鴨肉飯', price: 100 },
         { name: '雞腿排飯', price: 100 }, { name: '香酥豬排飯', price: 100 },
         { name: '麵', variant: true, priceLabel: '$55/65' },
@@ -943,6 +943,7 @@
     }
   ];
   const BENTO_VARIANTS = {
+    '滷肉飯': { sizePrice: { '小': 45, '大': 55 } },
     '麵': { sizePrice: { '小': 55, '大': 65 }, needsType: true },
     '粄條': { sizePrice: { '小': 55, '大': 65 }, needsType: true },
     '鴨肉麵': { sizePrice: { '小': 75, '大': 85 } },
